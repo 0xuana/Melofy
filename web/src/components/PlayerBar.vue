@@ -6,7 +6,7 @@ defineProps({
   track: { type: Object, default: null }, playing: Boolean, currentTime: { type: Number, default: 0 },
   duration: { type: Number, default: 0 }, volume: { type: Number, default: 0.8 },
   mode: { type: String, default: "sequence" }, quality: { type: String, default: "high" },
-  queueCount: { type: Number, default: 0 }, queueOpen: Boolean, lyricsOpen: Boolean,
+  queueCount: { type: Number, default: 0 }, queueOpen: Boolean,
 });
 const emit = defineEmits(["toggle", "previous", "next", "seek", "volume", "mute", "mode", "quality", "queue", "lyrics"]);
 const modeIcon = { sequence: "list", "repeat-list": "repeat", "repeat-one": "repeatOne", shuffle: "shuffle" };
@@ -22,9 +22,8 @@ function format(value) {
   <footer class="player-bar">
     <ProgressBar :current-time="currentTime" :duration="duration" @seek="emit('seek', $event)" />
     <div class="now-playing">
-      <button class="mini-cover" type="button" :aria-label="track ? `打开《${track.title}》歌词` : '暂无正在播放的歌曲'" :disabled="!track" :style="track?.album?.coverUrl ? { backgroundImage: `url(${track.album.coverUrl})` } : {}" @click="emit('lyrics')">{{ track ? '♫' : 'Q' }}</button>
+      <button class="mini-cover" type="button" :aria-label="track ? `打开《${track.title}》歌词` : '暂无正在播放的歌曲'" :disabled="!track" :style="track?.album?.coverUrl ? { backgroundImage: `url(${track.album.coverUrl})` } : {}" @click="emit('lyrics')">{{ track && !track.album?.coverUrl ? '♫' : !track ? 'Q' : '' }}</button>
       <div class="track-copy"><strong>{{ track?.title || '尚未播放' }}</strong><small>{{ track?.artists?.map(a => a.name).join(' / ') || '从歌单选择歌曲' }}</small></div>
-      <IconButton icon="music" label="打开歌词" :active="lyricsOpen" :disabled="!track" @click="emit('lyrics')" />
     </div>
     <div class="player-center">
       <div class="transport">
