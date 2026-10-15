@@ -5,6 +5,8 @@ import AppIcon from "./components/AppIcon.vue";
 import IconButton from "./components/IconButton.vue";
 import PlayerBar from "./components/PlayerBar.vue";
 import { registerMediaSessionActions } from "./mediaSession.js";
+import { applyThemePreferences, loadThemePreferences, saveThemePreferences } from "./themePreferences.js";
+import { loadVolumePreferences, saveVolumePreferences, toggleMuteVolume } from "./volumePreferences.js";
 import QueuePanel from "./components/QueuePanel.vue";
 import { parseLyrics } from "./lyrics.js";
 import { useQueue } from "./stores/queue.js";
@@ -22,7 +24,12 @@ const showQueue = ref(false);
 const playing = ref(false);
 const currentTime = ref(0);
 const duration = ref(0);
-const volume = ref(Number(localStorage.getItem("qqmusic-web.volume") ?? 0.8));
+const savedVolumePreferences = loadVolumePreferences();
+const volume = ref(savedVolumePreferences.volume);
+const lastAudibleVolume = ref(savedVolumePreferences.lastAudibleVolume);
+const savedThemePreferences = loadThemePreferences();
+const theme = ref(savedThemePreferences.theme);
+const followSystemTheme = ref(savedThemePreferences.followSystem);
 const lyricLines = ref([]);
 const showLyrics = ref(false);
 const lyricsScroll = ref();
@@ -71,6 +78,12 @@ watch(() => queue.current, (track) => {
 watch(playing, (isPlaying) => {
   if (navigator.mediaSession) navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
 });
+
+watch([theme, followSystemTheme], ([selectedTheme, followsSystem]) => {
+  const preferences = { theme: selectedTheme, followSystem: followsSystem };
+  applyThemePreferences(document.documentElement, preferences);
+  saveThemePreferences(preferences);
+}, { immediate: true });
 
 function setTrackElement(trackId, element) {
   if (element) trackElements.set(trackId, element);
@@ -198,7 +211,13 @@ async function removeFromQueue(index) {
 }
 async function playQueueTrack(track) { queue.select(track.id); await loadCurrent(track); }
 function seek(value) { if (audio.value) audio.value.currentTime = value; currentTime.value = value; }
-function setVolume(value) { volume.value = value; if (audio.value) audio.value.volume = value; localStorage.setItem("qqmusic-web.volume", String(value)); }
+function setVolume(value) {
+  volume.value = Math.min(1, Math.max(0, value));
+  if (volume.value > 0) lastAudibleVolume.value = volume.value;
+  if (audio.value) audio.value.volume = volume.value;
+  saveVolumePreferences(volume.value, lastAudibleVolume.value);
+}
+function toggleMute() { setVolume(toggleMuteVolume(volume.value, lastAudibleVolume.value)); }
 async function setQuality(value) { queue.setQuality(value); if (queue.current) await loadCurrent(queue.current); }
 function cyclePlaybackMode() {
   queue.cycleMode(tracks.value);
@@ -351,7 +370,7 @@ onBeforeUnmount(() => {
       </div>
     </aside>
     <main ref="mainView" @scroll="updateShortcutVisibility">
-      <header class="topbar"><label class="search-box"><AppIcon name="search" /><input v-model="filter" placeholder="在当前歌单中搜索"></label><div class="account-menu-wrap"><button class="account-trigger icon-button" :class="{ active: showAccountMenu }" type="button" :aria-label="showAccountMenu ? '关闭账号菜单' : '打开账号菜单'" :aria-expanded="showAccountMenu" @click.stop="showAccountMenu = !showAccountMenu"><img v-if="session?.avatarUrl" :src="session.avatarUrl" alt="" /><AppIcon v-else name="account" /></button><div v-if="showAccountMenu" class="account-dropdown" @click.stop><div class="account-summary"><img v-if="session?.avatarUrl" class="account-avatar" :src="session.avatarUrl" alt="" /><span v-else class="account-avatar">Q</span><span><strong>QQ 音乐账号</strong><small>{{ session?.accountId || '本机已登录' }}</small></span></div><button class="account-action" :disabled="loggingOut" @click="logout"><AppIcon name="logout" /><span>{{ loggingOut ? '正在退出…' : '退出登录' }}</span></button></div></div></header>
+      <header class="topbar"><label class="search-box"><AppIcon name="search" /><input v-model="filter" placeholder="在当前歌单中搜索"></label><div class="account-menu-wrap"><button class="account-trigger icon-button" :class="{ active: showAccountMenu }" type="button" :aria-label="showAccountMenu ? '关闭账号菜单' : '打开账号菜单'" :aria-expanded="showAccountMenu" @click.stop="showAccountMenu = !showAccountMenu"><img v-if="session?.avatarUrl" :src="session.avatarUrl" alt="" /><AppIcon v-else name="account" /></button><div v-if="showAccountMenu" class="account-dropdown" @click.stop><div class="account-summary"><img v-if="session?.avatarUrl" class="account-avatar" :src="session.avatarUrl" alt="" /><span v-else class="account-avatar">Q</span><span><strong>QQ 音乐账号</strong><small>{{ session?.accountId || '本机已登录' }}</small></span></div><label class="account-setting"><span>色彩主题</span><select v-model="theme" aria-label="色彩主题"><option value="pink">柔粉</option><option value="orange">暖橙</option><option value="green">清绿</option></select></label><label class="account-follow-setting"><input v-model="followSystemTheme" type="checkbox"><span>跟随浏览器切换深色模式</span></label><button class="account-action" :disabled="loggingOut" @click="logout"><AppIcon name="logout" /><span>{{ loggingOut ? '正在退出…' : '退出登录' }}</span></button></div></div></header>
       <section class="hero"><div class="cover" :style="selectedPlaylist?.coverUrl ? { backgroundImage: `url(${selectedPlaylist.coverUrl})` } : {}">{{ selectedPlaylist?.coverUrl ? '' : selectedPlaylist?.kind === 'liked' ? '♥' : '♫' }}</div><div class="hero-copy"><p class="eyebrow">{{ selectedPlaylist?.kind === 'collected' ? 'COLLECTED PLAYLIST' : selectedPlaylist?.kind === 'liked' ? 'YOUR FAVORITES' : 'YOUR PLAYLIST' }}</p><h1>{{ selectedPlaylist?.title || 'Melofy' }}</h1><p>{{ tracks.length }} 首歌曲 · 已从 QQ 音乐完整分页加载</p></div></section>
       <p v-if="error" class="error">{{ error }}</p>
       <section class="list">
@@ -367,7 +386,7 @@ onBeforeUnmount(() => {
         <IconButton v-if="showScrollTop" icon="top" label="回到列表顶部" @click="scrollToTop" />
       </div>
     </main>
-    <PlayerBar :track="queue.current" :playing="playing" :current-time="currentTime" :duration="duration" :volume="volume" :mode="queue.mode" :quality="queue.quality" :queue-count="queue.items.length" :queue-open="showQueue" :lyrics-open="showLyrics" @toggle="toggle" @previous="advance(-1)" @next="advance(1)" @seek="seek" @volume="setVolume" @mode="cyclePlaybackMode" @quality="setQuality" @queue="showQueue = !showQueue" @lyrics="showLyrics = !showLyrics" />
+    <PlayerBar :track="queue.current" :playing="playing" :current-time="currentTime" :duration="duration" :volume="volume" :mode="queue.mode" :quality="queue.quality" :queue-count="queue.items.length" :queue-open="showQueue" :lyrics-open="showLyrics" @toggle="toggle" @previous="advance(-1)" @next="advance(1)" @seek="seek" @volume="setVolume" @mute="toggleMute" @mode="cyclePlaybackMode" @quality="setQuality" @queue="showQueue = !showQueue" @lyrics="showLyrics = !showLyrics" />
     <audio ref="audio" @play="playing = true" @pause="playing = false" @timeupdate="currentTime = $event.currentTarget.currentTime" @durationchange="duration = Number.isFinite($event.currentTarget.duration) ? $event.currentTarget.duration : 0" @ended="ended" />
     <QueuePanel v-if="showQueue" :items="queue.items" :current-id="queue.currentId" :mode="queue.mode" @play="playQueueTrack" @move="queue.move" @remove="removeFromQueue" @clear="clearQueue" @close="showQueue = false" />
     <section v-if="showLyrics" class="lyrics-panel"><IconButton class="lyrics-close" icon="close" label="关闭歌词" @click="showLyrics = false" /><div class="lyrics-artwork-wrap"><img v-if="queue.current?.album?.coverUrl" class="lyrics-artwork" :src="queue.current.album.coverUrl" :alt="`${queue.current.album.name || queue.current.title} 专辑封面`"><div v-else class="lyrics-artwork lyrics-artwork--empty"><AppIcon name="music" /></div><div class="lyrics-artwork-meta"><strong>{{ queue.current?.album?.name || queue.current?.title || '歌词' }}</strong><span>{{ queue.current?.title }}</span><small>{{ queue.current?.artists?.map((artist) => artist.name).join(' / ') }}</small></div></div><div class="lyrics-content"><p class="eyebrow">NOW PLAYING</p><h2>{{ queue.current?.title || '歌词' }}</h2><div ref="lyricsScroll" class="lyrics-scroll" tabindex="0" aria-label="歌词" @wheel.passive="pauseLyricsFollow" @touchstart.passive="pauseLyricsFollow" @pointerdown="pauseLyricsFollow" @keydown="pauseLyricsFollow"><p v-if="!lyricLines.length" class="muted">暂无歌词</p><p v-for="(line, index) in lyricLines" :key="`${line.at}-${index}`" :ref="(element) => setLyricElement(index, element)" :class="{ active: index === activeLyric }">{{ line.text }}<small v-if="line.translation">{{ line.translation }}</small></p></div></div></section>

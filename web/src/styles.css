@@ -7,7 +7,7 @@
   --text-muted: #777;
   --background-color: #fff0f5;
   --background-color-secondary: #ffe6f0;
-  --color-primary: #ea33e4;
+  --color-primary: #d9468f;
   --color-primary-light: rgba(255, 105, 180, .12);
   --border-color: #ffd9e6;
   --hover-color: #ffe9f2;
@@ -18,6 +18,34 @@
   color: var(--text-color);
   background: var(--background-color);
 }
+:root[data-theme="orange"] {
+  --primary-color: #f4a23b;
+  --color-primary: #cf741e;
+  --color-primary-light: rgba(244, 162, 59, .14);
+  --border-color: #f0dfcd;
+  --hover-color: #fff2e4;
+  --background-color: #fff6ed;
+  --background-color-secondary: #ffead6;
+}
+:root[data-theme="green"] {
+  --primary-color: #63b883;
+  --color-primary: #328457;
+  --color-primary-light: rgba(99, 184, 131, .14);
+  --border-color: #d9eadf;
+  --hover-color: #edf8f0;
+  --background-color: #f2f9f3;
+  --background-color-secondary: #e2f1e5;
+}
+:root[data-theme="orange"] main { background: radial-gradient(ellipse at 52% -22%, #ffead5 0, #fff9f3 30%, #fff5ec 72%) }
+:root[data-theme="orange"] .topbar { background: rgba(255, 249, 243, .9); border-color: rgba(240, 223, 205, .72) }
+:root[data-theme="orange"] .hero { background: linear-gradient(120deg, #ffead5 0%, #fff0df 48%, #f8e9dd 100%) }
+:root[data-theme="orange"] .list-head { background: rgba(255, 249, 243, .94) }
+:root[data-theme="orange"] .track.is-current, :root[data-theme="orange"] .queue-row.current { border-color: #f0d1ad; background: #fff8f0 }
+:root[data-theme="green"] main { background: radial-gradient(ellipse at 52% -22%, #ddf1e1 0, #f7fbf7 30%, #f0f8f1 72%) }
+:root[data-theme="green"] .topbar { background: rgba(247, 251, 247, .9); border-color: rgba(217, 234, 223, .8) }
+:root[data-theme="green"] .hero { background: linear-gradient(120deg, #dff1e3 0%, #eaf5eb 48%, #e7f0e9 100%) }
+:root[data-theme="green"] .list-head { background: rgba(247, 251, 247, .94) }
+:root[data-theme="green"] .track.is-current, :root[data-theme="green"] .queue-row.current { border-color: #c4dfcc; background: #f5fbf6 }
 * { box-sizing: border-box }
 html, body, #app { width: 100%; height: 100%; overflow: hidden }
 body { margin: 0; min-width: 0; background: var(--background-color) }
@@ -27,7 +55,7 @@ button { color: inherit }
 .shell { height: 100vh; height: 100dvh; min-height: 0; display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) var(--player); overflow: hidden; background: var(--background-color) }
 .sidebar { grid-column: 1; grid-row: 1; min-height: 0; display: flex; flex-direction: column; padding: 25px 15px 13px; overflow: hidden; background: var(--surface); border-right: 1px solid var(--border-color); box-shadow: 2px 0 18px rgba(105, 48, 75, .035) }
 .brand { display: flex; flex: 0 0 auto; align-items: center; margin: 0 9px 29px; color: #38313a; font-size: 19px; font-weight: 760; letter-spacing: -.45px }
-.brand > span { display: inline-grid; place-items: center; width: 35px; height: 35px; flex: 0 0 35px; margin-right: 9px; overflow: hidden; border: 1px solid #f2e8de; border-radius: 11px; background: #fff; box-shadow: 0 4px 12px rgba(111, 74, 35, .12) }
+.brand > span { display: inline-grid; place-items: center; width: 35px; height: 35px; flex: 0 0 35px; margin-right: 9px; overflow: hidden; border-radius: 50%; background: #ffae16; box-shadow: 0 4px 12px rgba(111, 74, 35, .12) }
 .brand > span img { display: block; width: 100%; height: 100%; object-fit: cover }
 .sidebar-scroll { min-height: 0; overflow-y: auto; padding-right: 3px; scrollbar-width: thin; scrollbar-color: #efd7e1 transparent }
 .nav { width: 100%; display: flex; align-items: center; gap: 12px; padding: 11px 12px; border: 0; border-radius: 10px; text-align: left; color: #77717a; background: transparent; cursor: pointer; transition: background .16s ease, color .16s ease }
@@ -54,6 +82,10 @@ main { grid-column: 2; grid-row: 1; min-width: 0; min-height: 0; overflow-y: aut
 .account-summary strong, .account-summary small { display: block; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .account-summary strong { color: #473c44; font-size: 13px }
 .account-summary small { margin-top: 4px; color: #a1959d; font-size: 11px }
+.account-setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 9px 7px; color: #786a74; font-size: 12px }
+.account-setting select { min-width: 106px; padding: 7px 9px; border: 1px solid var(--border-color); border-radius: 8px; color: #786a74; background: #fff; font-size: 11px }
+.account-follow-setting { display: flex; align-items: center; gap: 8px; padding: 8px 9px 11px; color: #8c7d86; font-size: 11px; cursor: pointer }
+.account-follow-setting input { margin: 0; accent-color: var(--primary-color) }
 .account-action { width: 100%; display: flex; align-items: center; gap: 10px; margin-top: 7px; padding: 10px; border: 0; border-radius: 9px; color: #78616d; text-align: left; background: transparent; cursor: pointer }
 .account-action .app-icon { width: 18px; height: 18px }
 .account-action:hover:not(:disabled) { color: #d93682; background: #fff1f6 }
@@ -192,6 +224,62 @@ main { grid-column: 2; grid-row: 1; min-width: 0; min-height: 0; overflow-y: aut
 .lyrics-scroll p { margin: 20px; color: #b6aab2; font-size: 19px; transition: color .2s, font-size .2s }
 .lyrics-scroll p.active { color: var(--color-primary); font-size: 25px; font-weight: 700 }
 .lyrics-scroll small { display: block; margin-top: 7px; color: #a896a0; font-size: 13px }
+@media (prefers-color-scheme: dark) {
+  :root[data-follow-system="true"] {
+    color-scheme: dark;
+    --text-color: #eee5eb;
+    --text-muted: #b5a7b2;
+    --background-color: #18151b;
+    --background-color-secondary: #231c25;
+    --surface: #211b23;
+    --border-color: #3d303e;
+    --hover-color: #302432;
+    --shadow-soft: 0 12px 36px rgba(0, 0, 0, .24);
+  }
+  :root[data-follow-system="true"] body { color: var(--text-color); background: var(--background-color) }
+  :root[data-follow-system="true"] .shell, :root[data-follow-system="true"] .sidebar { background: var(--surface) }
+  :root[data-follow-system="true"] .sidebar { border-color: var(--border-color); box-shadow: none }
+  :root[data-follow-system="true"] .brand, :root[data-follow-system="true"] .hero h1,
+  :root[data-follow-system="true"] .track strong, :root[data-follow-system="true"] .account-summary strong,
+  :root[data-follow-system="true"] .queue-panel h2, :root[data-follow-system="true"] .queue-song strong,
+  :root[data-follow-system="true"] .track-copy strong, :root[data-follow-system="true"] .lyrics-artwork-meta,
+  :root[data-follow-system="true"] .lyrics-panel h2 { color: var(--text-color) }
+  :root[data-follow-system="true"] main { background: radial-gradient(ellipse at 52% -22%, #30212e 0, #211a23 38%, #18151b 78%) }
+  :root[data-follow-system="true"] .topbar { background: rgba(29, 23, 32, .9); border-color: var(--border-color) }
+  :root[data-follow-system="true"] .search-box, :root[data-follow-system="true"] .account-dropdown,
+  :root[data-follow-system="true"] .player-bar, :root[data-follow-system="true"] .queue-panel,
+  :root[data-follow-system="true"] .player-options select, :root[data-follow-system="true"] .account-setting select {
+    color: var(--text-color); background: #241e27; border-color: var(--border-color); box-shadow: 0 12px 34px rgba(0, 0, 0, .22)
+  }
+  :root[data-follow-system="true"] .search-box input, :root[data-follow-system="true"] .player-options select,
+  :root[data-follow-system="true"] .account-setting select { color: var(--text-color) }
+  :root[data-follow-system="true"] .account-summary { border-color: var(--border-color) }
+  :root[data-follow-system="true"] .account-setting, :root[data-follow-system="true"] .account-follow-setting,
+  :root[data-follow-system="true"] .account-action, :root[data-follow-system="true"] .nav,
+  :root[data-follow-system="true"] .track, :root[data-follow-system="true"] .album-cell,
+  :root[data-follow-system="true"] .queue-song small { color: #b9acb7 }
+  :root[data-follow-system="true"] .account-action:hover:not(:disabled), :root[data-follow-system="true"] .nav:hover,
+  :root[data-follow-system="true"] .queue-row:hover { background: #332634 }
+  :root[data-follow-system="true"] .hero { border-color: #493342; background: linear-gradient(120deg, #392333, #2c2130 52%, #27202e) }
+  :root[data-follow-system="true"] .hero p, :root[data-follow-system="true"] .eyebrow,
+  :root[data-follow-system="true"] .track small, :root[data-follow-system="true"] .track-copy small,
+  :root[data-follow-system="true"] .time-row { color: #b7a3b1 }
+  :root[data-follow-system="true"] .list-head { color: #b19eac; border-color: var(--border-color); background: rgba(31, 25, 34, .94) }
+  :root[data-follow-system="true"] .track.is-current, :root[data-follow-system="true"] .queue-row.current {
+    border-color: color-mix(in srgb, var(--primary-color), #fff 28%); background: color-mix(in srgb, var(--primary-color), #211b23 91%)
+  }
+  :root[data-follow-system="true"] .progress::before, :root[data-follow-system="true"] .player-bar { border-color: var(--border-color) }
+  :root[data-follow-system="true"] .progress::before { background: #493b4a }
+  :root[data-follow-system="true"] .login-screen { background: radial-gradient(ellipse at 50% 0%, #352334, #1b171e 65%) }
+  :root[data-follow-system="true"] .login-card { color: var(--text-color); border-color: var(--border-color); background: rgba(36, 29, 39, .94); box-shadow: 0 24px 70px rgba(0, 0, 0, .34) }
+  :root[data-follow-system="true"] .login-card h1 { color: var(--text-color) }
+  :root[data-follow-system="true"] .login-description, :root[data-follow-system="true"] .login-privacy,
+  :root[data-follow-system="true"] .login-state { color: #bbaab7 }
+  :root[data-follow-system="true"] .qr-stage { border-color: var(--border-color); background: #fff }
+  :root[data-follow-system="true"] .lyrics-panel { background: rgba(27, 22, 30, .97) }
+  :root[data-follow-system="true"] .lyrics-artwork-meta span, :root[data-follow-system="true"] .lyrics-artwork-meta small,
+  :root[data-follow-system="true"] .lyrics-scroll p { color: #b7a9b3 }
+}
 @keyframes spin { to { transform: rotate(360deg) } }
 @keyframes pulse { 50% { box-shadow: 0 0 0 7px rgba(85,185,141,0) } }
 @keyframes playing-bars { from { transform: scaleY(.45) } to { transform: scaleY(1) } }

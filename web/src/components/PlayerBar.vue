@@ -8,7 +8,7 @@ defineProps({
   mode: { type: String, default: "sequence" }, quality: { type: String, default: "high" },
   queueCount: { type: Number, default: 0 }, queueOpen: Boolean, lyricsOpen: Boolean,
 });
-const emit = defineEmits(["toggle", "previous", "next", "seek", "volume", "mode", "quality", "queue", "lyrics"]);
+const emit = defineEmits(["toggle", "previous", "next", "seek", "volume", "mute", "mode", "quality", "queue", "lyrics"]);
 const modeIcon = { sequence: "list", "repeat-list": "repeat", "repeat-one": "repeatOne", shuffle: "shuffle" };
 const modeLabel = { sequence: "顺序播放", "repeat-list": "列表循环", "repeat-one": "单曲循环", shuffle: "随机播放" };
 function format(value) {
@@ -37,7 +37,7 @@ function format(value) {
     <div class="player-options">
       <select :value="quality" aria-label="音质" @change="emit('quality', $event.target.value)"><option value="standard">标准</option><option value="high">高品质</option><option value="lossless">无损</option><option value="hires">Hi-Res</option></select>
       <IconButton :icon="modeIcon[mode]" :label="modeLabel[mode]" @click="emit('mode')" />
-      <label class="volume"><IconButton :icon="volume === 0 ? 'mute' : 'volume'" :label="volume === 0 ? '取消静音' : '音量'" @click="emit('volume', volume === 0 ? 0.8 : 0)" /><input type="range" min="0" max="1" step="0.01" :value="volume" aria-label="音量" @input="emit('volume', Number($event.target.value))"></label>
+      <label class="volume"><IconButton :icon="volume === 0 ? 'mute' : 'volume'" :label="volume === 0 ? '取消静音' : '静音'" @click="emit('mute')" /><input type="range" min="0" max="1" step="0.01" :value="volume" aria-label="音量" @input="emit('volume', Number($event.target.value))"></label>
       <IconButton icon="queue" label="播放队列" :active="queueOpen" @click="emit('queue')"><template v-if="queueCount">{{ queueCount }}</template></IconButton>
     </div>
   </footer>
