@@ -14,7 +14,7 @@ test("loads the liked collection and resolves an authenticated stream", async ()
       return Response.json({ code: 0, data: { creator: { avatarUrl: "https://img.example/avatar.jpg" }, mymusic: [{ type: 1, id: "42" }] } });
     }
 
-    if (url.includes("fcg_query_lyric_new")) return Response.json({ code: 0, lyric: Buffer.from("[00:01.00]Line").toString("base64"), trans: Buffer.from("[00:01.00]翻译").toString("base64") });
+    if (url.includes("fcg_query_lyric_new")) return Response.json({ code: 0, lyric: Buffer.from("[ti:Song]\n[00:01.00]Line").toString("base64"), trans_v2: Buffer.from("[ti:Song]\n[00:01.00]翻译").toString("base64") });
 
     if (body?.library) {
       return Response.json({
@@ -77,7 +77,7 @@ test("loads the liked collection and resolves an authenticated stream", async ()
   const libraryRequest = requests.find((request) => request.body?.library);
   assert.equal((libraryRequest?.body?.comm as Record<string, unknown>).authst, "private-key");
   assert.doesNotMatch(JSON.stringify(page), /private-key/);
-  assert.deepEqual(await provider.getLyrics("7"), { trackId: "7", lyric: "[00:01.00]Line", translation: "[00:01.00]翻译" });
+  assert.deepEqual(await provider.getLyrics("7"), { trackId: "7", lyric: "[ti:Song]\n[00:01.00]Line", translation: "[ti:Song]\n[00:01.00]翻译" });
 });
 
 test("normalizes created and collected playlists and pages playlist tracks", async () => {

@@ -45,10 +45,18 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 function decodeLrc(value: unknown): string {
-  if (typeof value !== "string" || value.includes("[")) return typeof value === "string" ? value : "";
+  if (typeof value !== "string" || /\[\d{1,3}:\d{2}(?:\.\d+)?\]/.test(value)) return typeof value === "string" ? value : "";
   if (!/^[A-Za-z0-9+/]+={0,2}$/.test(value) || value.length % 4 !== 0) return value;
   const decoded = Buffer.from(value, "base64").toString("utf8");
   return /\[\d{1,3}:\d{2}(?:\.\d+)?\]/.test(decoded) ? decoded : value;
+}
+
+function firstLrc(...values: unknown[]): string {
+  for (const value of values) {
+    const decoded = decodeLrc(value);
+    if (/\[\d{1,3}:\d{2}(?:\.\d+)?\]/.test(decoded)) return decoded;
+  }
+  return "";
 }
 
 function numericCursor(cursor: string | null): number {
@@ -229,8 +237,8 @@ export class LiveQQMusicProvider implements QQMusicProvider {
     if (payload.code !== 0) throw new Error(`QQMusic rejected lyrics with code ${String(payload.code)}`);
     return {
       trackId,
-      lyric: decodeLrc(payload.lyric),
-      translation: decodeLrc(payload.trans ?? payload.translation),
+      lyric: firstLrc(payload.lyric, payload.lyricText),
+      translation: firstLrc(payload.trans, payload.trans_v2, payload.transText, payload.translation, payload.translationLyric),
     };
   }
 
