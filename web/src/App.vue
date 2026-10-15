@@ -37,6 +37,7 @@ const session = ref(null);
 const qr = ref(null);
 const loginStatus = ref("idle");
 const showAccountMenu = ref(false);
+const showThemeMenu = ref(false);
 const loggingOut = ref(false);
 const showScrollTop = ref(false);
 const showJumpToCurrent = ref(false);
@@ -296,7 +297,6 @@ async function logout() {
     playing.value = false;
     showQueue.value = false;
     showLyrics.value = false;
-    showAccountMenu.value = false;
     qr.value = null;
     loginStatus.value = "idle";
     session.value = null;
@@ -339,7 +339,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="shell" @click="showAccountMenu = false">
+  <div class="shell" @click="showAccountMenu = false; showThemeMenu = false">
     <div v-if="!session" class="login-screen">
       <div class="login-card">
         <div class="brand"><span><img src="/melofy-icon.svg" alt="" /></span> Melofy</div>
@@ -370,7 +370,7 @@ onBeforeUnmount(() => {
       </div>
     </aside>
     <main ref="mainView" @scroll="updateShortcutVisibility">
-      <header class="topbar"><label class="search-box"><AppIcon name="search" /><input v-model="filter" placeholder="在当前歌单中搜索"></label><div class="account-menu-wrap"><button class="account-trigger icon-button" :class="{ active: showAccountMenu }" type="button" :aria-label="showAccountMenu ? '关闭账号菜单' : '打开账号菜单'" :aria-expanded="showAccountMenu" @click.stop="showAccountMenu = !showAccountMenu"><img v-if="session?.avatarUrl" :src="session.avatarUrl" alt="" /><AppIcon v-else name="account" /></button><div v-if="showAccountMenu" class="account-dropdown" @click.stop><div class="account-summary"><img v-if="session?.avatarUrl" class="account-avatar" :src="session.avatarUrl" alt="" /><span v-else class="account-avatar">Q</span><span><strong>QQ 音乐账号</strong><small>{{ session?.accountId || '本机已登录' }}</small></span></div><label class="account-setting"><span>色彩主题</span><select v-model="theme" aria-label="色彩主题"><option value="pink">柔粉</option><option value="orange">暖橙</option><option value="green">清绿</option></select></label><label class="account-follow-setting"><input v-model="followSystemTheme" type="checkbox"><span>跟随浏览器切换深色模式</span></label><button class="account-action" :disabled="loggingOut" @click="logout"><AppIcon name="logout" /><span>{{ loggingOut ? '正在退出…' : '退出登录' }}</span></button></div></div></header>
+      <header class="topbar"><label class="search-box"><AppIcon name="search" /><input v-model="filter" placeholder="在当前歌单中搜索"></label><div class="topbar-actions"><div class="theme-menu-wrap"><button class="icon-button" :class="{ active: showThemeMenu }" type="button" aria-label="外观设置" :aria-expanded="showThemeMenu" @click.stop="showThemeMenu = !showThemeMenu; showAccountMenu = false"><AppIcon name="settings" /></button><div v-if="showThemeMenu" class="account-dropdown theme-dropdown" @click.stop><strong class="menu-title">外观设置</strong><label class="account-setting"><span>色彩主题</span><select v-model="theme" aria-label="色彩主题"><option value="pink">柔粉</option><option value="orange">暖橙</option><option value="green">清绿</option></select></label><label class="account-follow-setting"><input v-model="followSystemTheme" type="checkbox"><span>跟随浏览器切换深色模式</span></label></div></div><div class="account-menu-wrap"><button class="account-trigger icon-button" :class="{ active: showAccountMenu }" type="button" :aria-label="showAccountMenu ? '关闭账号菜单' : '打开账号菜单'" :aria-expanded="showAccountMenu" @click.stop="showAccountMenu = !showAccountMenu; showThemeMenu = false"><img v-if="session?.avatarUrl" :src="session.avatarUrl" alt="" /><AppIcon v-else name="account" /></button><div v-if="showAccountMenu" class="account-dropdown" @click.stop><div class="account-summary"><img v-if="session?.avatarUrl" class="account-avatar" :src="session.avatarUrl" alt="" /><span v-else class="account-avatar">Q</span><span><strong>QQ 音乐账号</strong><small>{{ session?.accountId || '本机已登录' }}</small></span></div><button class="account-action" :disabled="loggingOut" @click="logout"><AppIcon name="logout" /><span>{{ loggingOut ? '正在退出…' : '退出登录' }}</span></button></div></div></div></header>
       <section class="hero"><div class="cover" :style="selectedPlaylist?.coverUrl ? { backgroundImage: `url(${selectedPlaylist.coverUrl})` } : {}">{{ selectedPlaylist?.coverUrl ? '' : selectedPlaylist?.kind === 'liked' ? '♥' : '♫' }}</div><div class="hero-copy"><p class="eyebrow">{{ selectedPlaylist?.kind === 'collected' ? 'COLLECTED PLAYLIST' : selectedPlaylist?.kind === 'liked' ? 'YOUR FAVORITES' : 'YOUR PLAYLIST' }}</p><h1>{{ selectedPlaylist?.title || 'Melofy' }}</h1><p>{{ tracks.length }} 首歌曲 · 已从 QQ 音乐完整分页加载</p></div></section>
       <p v-if="error" class="error">{{ error }}</p>
       <section class="list">
