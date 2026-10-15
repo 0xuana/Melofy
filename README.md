@@ -60,6 +60,40 @@ npm run dev
 
 锁屏、关闭浏览器、停止服务或重启电脑不会清除登录状态，通常不需要重新扫码。
 
+## 使用 Docker 部署
+
+需要 Docker Engine 和 Docker Compose。容器版包含生产构建的 Web 页面和 API；网页默认只允许本机访问：<http://127.0.0.1:8080>。第一次启动会构建镜像：
+
+```bash
+docker compose up -d --build
+```
+
+打开页面后使用 QQ 或微信扫码登录。登录信息保存在名为 `melofy-data` 的 Docker 命名卷中，容器重建或执行 `docker compose down` 不会清除。查看状态和日志：
+
+Docker 版使用应用内扫码登录；不会自动导入宿主机 Linux QQ 音乐客户端的登录配置。
+
+```bash
+docker compose ps
+docker compose logs -f
+```
+
+停止服务但保留登录信息：
+
+```bash
+docker compose down
+```
+
+如需换用本机其他端口，可在启动时设置 `MELOFY_PORT`，例如 `MELOFY_PORT=8780 docker compose up -d --build`。该端口仍只绑定 `127.0.0.1`。
+
+登录凭据备份可通过临时容器导出数据卷：
+
+```bash
+docker run --rm -v qqmusic_melofy-data:/data -v "$PWD":/backup alpine \
+  tar -czf /backup/melofy-data-backup.tar.gz -C /data .
+```
+
+Compose 项目名会影响卷名；先用 `docker volume ls` 确认实际名称。备份文件含敏感登录凭据，请妥善保管，不要上传或提交。**不要使用 `docker compose down -v`**，该命令会删除凭据卷并导致需要重新扫码。
+
 ## 登录信息保存位置
 
 登录凭据只保存在 API 服务端，不会发送给浏览器。
@@ -158,7 +192,7 @@ npm run typecheck
 npm run build --workspace @qqmusic-web/web
 ```
 
-构建结果位于 `web/dist/`。当前项目主要按本机开发服务器方式运行，还没有提供生产环境静态文件服务器。
+构建结果位于 `web/dist/`。也可使用 Docker Compose 部署生产前端与本地 API，详见上文。
 
 ## 常见问题
 
@@ -217,4 +251,4 @@ packages/installed-profile-adapter/ Linux 官方客户端会话导入
 reports/                            逆向分析和协议证据
 ```
 
-本项目只监听 `127.0.0.1`，面向单台电脑上的个人使用，不提供公网多用户服务。
+本项目面向单台电脑上的个人使用。开发 API 默认只监听 `127.0.0.1`；Docker 部署通过 Nginx 提供页面和 API 代理，并将宿主机端口绑定到 `127.0.0.1`，不作为公网多用户服务使用。
