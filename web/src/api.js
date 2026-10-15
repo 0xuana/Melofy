@@ -63,14 +63,14 @@ export function endSession() {
   });
 }
 
-export function createQQLogin() {
-  return fetch("/api/auth/qq/qr", { method: "POST" }).then(async (response) => {
+export function createLoginQR(provider = "qq") {
+  return fetch(`/api/auth/${encodeURIComponent(provider)}/qr`, { method: "POST" }).then(async (response) => {
     const body = await response.json();
-    if (!response.ok) throw new Error(body.error || "无法获取 QQ 登录二维码");
+    if (!response.ok) throw new Error(body.error || `无法获取${provider === "wechat" ? "微信" : "QQ"}登录二维码`);
     return body;
   });
 }
 
-export function pollQQLogin(id) {
-  return json(`/api/auth/qq/qr/${encodeURIComponent(id)}`);
+export function pollLoginQR(provider, id) {
+  return json(`/api/auth/${encodeURIComponent(provider)}/qr/${encodeURIComponent(id)}`);
 }

@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { createQQLogin, endSession, loadLyrics, loadPlaylists, loadPlaylistTracks, loadSession, pollQQLogin, resolveStream } from "./api.js";
+import { createLoginQR, endSession, loadLyrics, loadPlaylists, loadPlaylistTracks, loadSession, pollLoginQR, resolveStream } from "./api.js";
 import AppIcon from "./components/AppIcon.vue";
 import IconButton from "./components/IconButton.vue";
 import PlayerBar from "./components/PlayerBar.vue";
@@ -36,6 +36,7 @@ const lyricsScroll = ref();
 const session = ref(null);
 const qr = ref(null);
 const loginStatus = ref("idle");
+const loginProvider = ref("qq");
 const showAccountMenu = ref(false);
 const showThemeMenu = ref(false);
 const loggingOut = ref(false);
@@ -252,10 +253,19 @@ async function beginLogin() {
     clearInterval(loginTimer);
     qr.value = null;
     loginStatus.value = "loading";
-    qr.value = await createQQLogin();
+    qr.value = { ...await createLoginQR(loginProvider.value), provider: loginProvider.value };
     loginStatus.value = "waiting";
     loginTimer = setInterval(checkLogin, 2_000);
   } catch (reason) { loginStatus.value = "error"; error.value = reason.message || "二维码创建失败"; }
+}
+
+function selectLoginProvider(provider) {
+  if (loginProvider.value === provider) return;
+  loginProvider.value = provider;
+  clearInterval(loginTimer);
+  qr.value = null;
+  loginStatus.value = "idle";
+  error.value = "";
 }
 
 async function checkLogin() {
@@ -263,7 +273,7 @@ async function checkLogin() {
   const pollingId = qr.value.id;
   loginPolling = true;
   try {
-    const result = await pollQQLogin(pollingId);
+    const result = await pollLoginQR(qr.value.provider || loginProvider.value, pollingId);
     if (qr.value?.id !== pollingId) return;
     loginStatus.value = result.status;
     if (result.status === "complete") {
@@ -345,19 +355,23 @@ onBeforeUnmount(() => {
         <div class="brand"><span><img src="/melofy-icon.svg" alt="" /></span> Melofy</div>
         <p class="eyebrow">YOUR MUSIC, YOUR WAY</p>
         <h1>登录 QQ 音乐</h1>
-        <p class="login-description">使用手机 QQ 扫描二维码。登录信息将安全保存在这台电脑上。</p>
-        <div class="qr-stage" :class="{ 'qr-stage--ready': qr }">
-          <img v-if="qr" :src="qr.imageDataUrl" alt="QQ 登录二维码">
-          <div v-else-if="loginStatus === 'loading'" class="qr-placeholder qr-loading"><span></span><small>正在获取安全二维码…</small></div>
-          <div v-else class="qr-placeholder"><div class="qr-decoration"><i></i><i></i><i></i><i></i><span>Q</span></div><small>点击下方按钮获取二维码</small></div>
+        <p class="login-description">选择 QQ 或微信扫码登录。登录信息将安全保存在这台电脑上。</p>
+        <div class="login-methods" role="tablist" aria-label="登录方式">
+          <button type="button" role="tab" :aria-selected="loginProvider === 'qq'" :class="{ active: loginProvider === 'qq' }" @click="selectLoginProvider('qq')">QQ 扫码</button>
+          <button type="button" role="tab" :aria-selected="loginProvider === 'wechat'" :class="{ active: loginProvider === 'wechat' }" @click="selectLoginProvider('wechat')">微信扫码</button>
         </div>
-        <p v-if="loginStatus === 'scanned'" class="login-state"><span class="status-dot"></span>已扫码，请在手机上确认登录</p>
+        <div class="qr-stage" :class="{ 'qr-stage--ready': qr }">
+          <img v-if="qr" :src="qr.imageDataUrl" :alt="`${loginProvider === 'wechat' ? '微信' : 'QQ'}登录二维码`">
+          <div v-else-if="loginStatus === 'loading'" class="qr-placeholder qr-loading"><span></span><small>正在获取安全二维码…</small></div>
+          <div v-else class="qr-placeholder"><div class="qr-decoration"><i></i><i></i><i></i><i></i><span>{{ loginProvider === 'wechat' ? '微' : 'Q' }}</span></div><small>点击下方按钮获取二维码</small></div>
+        </div>
+        <p v-if="loginStatus === 'scanned'" class="login-state"><span class="status-dot"></span>已扫码，请在{{ loginProvider === 'wechat' ? '微信' : '手机 QQ' }}上确认登录</p>
         <p v-else-if="loginStatus === 'expired'" class="login-state login-state--warning">二维码已过期，请重新获取</p>
         <p v-else-if="loginStatus === 'refused'" class="login-state login-state--warning">登录已取消，可以重新扫码</p>
-        <p v-else-if="loginStatus === 'waiting'" class="login-state"><span class="status-dot status-dot--pulse"></span>等待手机 QQ 扫码</p>
+        <p v-else-if="loginStatus === 'waiting'" class="login-state"><span class="status-dot status-dot--pulse"></span>等待{{ loginProvider === 'wechat' ? '微信' : '手机 QQ' }}扫码</p>
         <p v-else-if="loginStatus === 'complete'" class="login-state">登录成功，正在载入歌单…</p>
-        <IconButton class="login-action" icon="refresh" :label="loginStatus === 'loading' ? '正在获取二维码' : qr ? '刷新二维码' : '获取登录二维码'" variant="primary" :disabled="loginStatus === 'loading'" with-label @click="beginLogin" />
-        <p class="login-privacy"><AppIcon name="account" />QQ 凭据仅保存在本机，不会发送给浏览器</p>
+        <IconButton class="login-action" icon="refresh" :label="loginStatus === 'loading' ? '正在获取二维码' : qr ? '刷新二维码' : `获取${loginProvider === 'wechat' ? '微信' : 'QQ'}登录二维码`" variant="primary" :disabled="loginStatus === 'loading'" with-label @click="beginLogin" />
+        <p class="login-privacy"><AppIcon name="account" />登录凭据仅保存在本机，不会发送给浏览器</p>
         <p v-if="error" class="login-error">{{ error }}</p>
       </div>
     </div>

@@ -213,6 +213,10 @@ main { grid-column: 2; grid-row: 1; min-width: 0; min-height: 0; overflow-y: aut
 .login-card .eyebrow { color: #c37b9d }
 .login-card h1 { margin: 0; color: #41323c; font-size: 29px; letter-spacing: -.7px }
 .login-description { max-width: 310px; margin: 10px auto 19px; color: #93848d; font-size: 12px; line-height: 1.7 }
+.login-methods { width: min(260px, 100%); display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin: -5px auto 15px; padding: 4px; border: 1px solid var(--border-color); border-radius: 11px; background: var(--background-color) }
+.login-methods button { padding: 8px 10px; border: 0; border-radius: 8px; color: #93848d; background: transparent; font-size: 12px; cursor: pointer; transition: color .15s ease, background .15s ease, box-shadow .15s ease }
+.login-methods button.active { color: var(--color-primary); background: var(--surface); box-shadow: 0 2px 8px rgba(94, 38, 64, .09); font-weight: 700 }
+.login-methods button:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 1px }
 .qr-stage { width: 224px; height: 224px; display: grid; place-items: center; margin: 0 auto 14px; padding: 10px; border: 1px solid #f0dce6; border-radius: 17px; background: #fff; box-shadow: 0 8px 23px rgba(124, 64, 96, .07) }
 .qr-stage img { display: block; width: 100%; height: 100%; padding: 5px; border-radius: 10px; object-fit: contain; background: #fff }
 .qr-placeholder { display: grid; justify-items: center; gap: 14px; color: #ad9ca7 }
@@ -298,6 +302,8 @@ main { grid-column: 2; grid-row: 1; min-width: 0; min-height: 0; overflow-y: aut
   :root[data-follow-system="true"] .login-card h1 { color: var(--text-color) }
   :root[data-follow-system="true"] .login-description, :root[data-follow-system="true"] .login-privacy,
   :root[data-follow-system="true"] .login-state { color: #bbaab7 }
+  :root[data-follow-system="true"] .login-methods { background: #211a23 }
+  :root[data-follow-system="true"] .login-methods button.active { color: var(--primary-color); background: #332735 }
   :root[data-follow-system="true"] .qr-stage { border-color: var(--border-color); background: #fff }
   :root[data-follow-system="true"] .lyrics-panel { background: rgba(27, 22, 30, .97) }
   :root[data-follow-system="true"] .lyrics-artwork-meta span, :root[data-follow-system="true"] .lyrics-artwork-meta small,
