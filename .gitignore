@@ -1,9 +1,57 @@
+# Dependencies
 node_modules/
+.pnpm-store/
+
+# Build output and caches
 dist/
+build/
 coverage/
 .vite/
+.cache/
+.turbo/
+*.tsbuildinfo
+
+# Logs
 *.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Local environment and secrets
 .env
 .env.*
 !.env.example
+!.env.*.example
 
+# Local deployment tooling
+.wrangler/
+.vercel/
+
+# Editors
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+
+# Operating system metadata
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+
+# Packaged installers
+*.deb
+*.exe
+
+# Local/reference material (intentionally not versioned)
+.agents/
+history/
+refer/
