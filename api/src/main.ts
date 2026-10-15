@@ -10,6 +10,7 @@ import { SessionStore } from "./session-store.js";
 import { WeChatQrLoginService } from "./wechat-qr-login.js";
 
 const port = Number.parseInt(process.env.PORT ?? "8787", 10);
+const host = process.env.HOST ?? "127.0.0.1";
 const configRoot = process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config");
 const profilePath = process.env.QQMUSIC_PROFILE_PATH ?? join(configRoot, "qqmusic");
 const dataRoot = process.env.XDG_DATA_HOME ?? join(homedir(), ".local", "share");
@@ -21,4 +22,4 @@ createServer(createRequestHandler(() => sessions.provider(), profilePath, {
   wechatQrLogin: new WeChatQrLoginService(),
   sessions,
 }))
-  .listen(port, "127.0.0.1", () => console.log(`QQMusic API: http://127.0.0.1:${port}`));
+  .listen(port, host, () => console.log(`QQMusic API: http://${host}:${port}`));

@@ -1,0 +1,27 @@
+services:
+  api:
+    build:
+      context: .
+      target: api
+    restart: unless-stopped
+    volumes:
+      - melofy-data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  web:
+    build:
+      context: .
+      target: web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${MELOFY_PORT:-8080}:80"
+
+volumes:
+  melofy-data:
