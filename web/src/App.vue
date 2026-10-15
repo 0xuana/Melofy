@@ -118,10 +118,11 @@ function pauseLyricsFollow() {
 }
 
 function handleGlobalKeydown(event) {
-  if (event.key !== "Escape" || !showLyrics.value) return;
+  if (event.key !== "Escape" || (!showLyrics.value && !showQueue.value)) return;
   const target = event.target;
   if (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
-  showLyrics.value = false;
+  if (showQueue.value) showQueue.value = false;
+  else showLyrics.value = false;
 }
 
 function updateShortcutVisibility() {
