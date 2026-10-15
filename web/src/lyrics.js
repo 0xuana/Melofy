@@ -14,15 +14,17 @@ export function parseLyrics(lyric, translation = "") {
   const translatedLines = timedLines(translation);
   const usedTranslations = new Set();
   return sourceLines.map((line) => {
+    const exact = translatedLines.find((candidate) => candidate.at === line.at);
+    if (exact) return { ...line, translation: exact.text };
     let closest = null;
+    const previousAt = sourceLines.findLast((candidate) => candidate.at < line.at)?.at ?? Number.NEGATIVE_INFINITY;
+    const nextAt = sourceLines.find((candidate) => candidate.at > line.at)?.at ?? Number.POSITIVE_INFINITY;
+    const midpointBefore = Number.isFinite(previousAt) ? (previousAt + line.at) / 2 : Number.NEGATIVE_INFINITY;
+    const midpointAfter = Number.isFinite(nextAt) ? (line.at + nextAt) / 2 : Number.POSITIVE_INFINITY;
     for (let index = 0; index < translatedLines.length; index++) {
       const candidate = translatedLines[index];
-      if (usedTranslations.has(index)) continue;
+      if (usedTranslations.has(index) || candidate.at < midpointBefore || candidate.at >= midpointAfter) continue;
       const distance = Math.abs(candidate.at - line.at);
-      if (distance === 0) {
-        closest = { index, distance, text: candidate.text };
-        break;
-      }
       if (distance <= 1_500 && (!closest || distance < closest.distance)) {
         closest = { index, distance, text: candidate.text };
       }
