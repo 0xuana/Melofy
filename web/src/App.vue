@@ -342,7 +342,7 @@ onBeforeUnmount(() => {
   <div class="shell" @click="showAccountMenu = false">
     <div v-if="!session" class="login-screen">
       <div class="login-card">
-        <div class="brand"><span><img src="/qqmusic-icon.png" alt="" /></span> Melofy</div>
+        <div class="brand"><span><img src="/melofy-icon.svg" alt="" /></span> Melofy</div>
         <p class="eyebrow">YOUR MUSIC, YOUR WAY</p>
         <h1>登录 QQ 音乐</h1>
         <p class="login-description">使用手机 QQ 扫描二维码。登录信息将安全保存在这台电脑上。</p>
@@ -362,7 +362,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
     <aside class="sidebar">
-      <div class="brand"><span><img src="/qqmusic-icon.png" alt="" /></span> Melofy</div>
+      <div class="brand"><span><img src="/melofy-icon.svg" alt="" /></span> Melofy</div>
       <div class="sidebar-scroll">
         <button v-for="playlist in playlists.filter(p => p.kind === 'liked')" :key="`liked-${playlist.id}`" class="nav" :class="{ active: selectedPlaylist?.id === playlist.id && selectedPlaylist?.kind === playlist.kind }" @click="selectPlaylist(playlist)"><AppIcon class="nav-icon" name="heart" /><span class="nav-title">{{ playlist.title }}</span></button>
         <div class="section-label">我的歌单</div>
