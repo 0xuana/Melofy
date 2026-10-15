@@ -29,3 +29,29 @@ test("imports the installed session once and restores it after restart", async (
     assert.deepEqual(await restarted.provider()?.getSession(), await firstRun.provider()?.getSession());
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+test("restores a WeChat QQMusic session as a WeChat login after restart", async () => {
+  const root = mkdtempSync(join(tmpdir(), "qqmusic-wechat-session-"));
+  const store = new SessionStore(join(root, "session.json"));
+  const credentials = {
+    accountId: "123456",
+    accountType: "wx",
+    musicKey: "W_X_persistent-secret",
+    expiresAt: new Date("2030-01-01T00:00:00.000Z"),
+    refreshKey: "refresh-key",
+    refreshToken: "refresh-token",
+  };
+  try {
+    const firstRun = new SessionManager(store);
+    firstRun.setCredentials(credentials);
+    assert.deepEqual(await firstRun.provider()?.getSession(), {
+      accountId: "123456",
+      provider: "wechat",
+      expiresAt: "2030-01-01T00:00:00.000Z",
+      avatarUrl: null,
+    });
+
+    const restarted = new SessionManager(store);
+    assert.deepEqual(await restarted.provider()?.getSession(), await firstRun.provider()?.getSession());
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
