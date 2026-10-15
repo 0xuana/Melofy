@@ -7,6 +7,7 @@ import { createRequestHandler } from "./app.js";
 import { QQQrLoginService } from "./qq-qr-login.js";
 import { SessionManager } from "./session-manager.js";
 import { SessionStore } from "./session-store.js";
+import { WeChatQrLoginService } from "./wechat-qr-login.js";
 
 const port = Number.parseInt(process.env.PORT ?? "8787", 10);
 const configRoot = process.env.XDG_CONFIG_HOME ?? join(homedir(), ".config");
@@ -15,5 +16,9 @@ const dataRoot = process.env.XDG_DATA_HOME ?? join(homedir(), ".local", "share")
 const sessionPath = process.env.QQMUSIC_SESSION_PATH ?? join(dataRoot, "qqmusic-web", "session.json");
 const sessions = new SessionManager(new SessionStore(sessionPath), loadInstalledSession(profilePath));
 
-createServer(createRequestHandler(() => sessions.provider(), profilePath, { qrLogin: new QQQrLoginService(), sessions }))
+createServer(createRequestHandler(() => sessions.provider(), profilePath, {
+  qrLogin: new QQQrLoginService(),
+  wechatQrLogin: new WeChatQrLoginService(),
+  sessions,
+}))
   .listen(port, "127.0.0.1", () => console.log(`QQMusic API: http://127.0.0.1:${port}`));

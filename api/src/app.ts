@@ -4,6 +4,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 import type { QQQrLoginService } from "./qq-qr-login.js";
 import type { SessionManager } from "./session-manager.js";
+import type { WeChatQrLoginService } from "./wechat-qr-login.js";
 
 const qualities = new Set<AudioQuality>(["standard", "high", "lossless", "hires"]);
 
@@ -23,6 +24,7 @@ function pageSize(value: string | null): number {
 
 interface AuthenticationServices {
   readonly qrLogin: QQQrLoginService;
+  readonly wechatQrLogin: WeChatQrLoginService;
   readonly sessions: SessionManager;
 }
 
@@ -44,6 +46,15 @@ export function createRequestHandler(
         if (!authentication) { sendJson(response, 501, { error: "QQ QR login is not configured" }); return; }
         const id = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
         const result = await authentication.qrLogin.poll(id);
+        if (result.credentials) authentication.sessions.setCredentials(result.credentials);
+        sendJson(response, 200, { status: result.status });
+      } else if (request.method === "POST" && url.pathname === "/api/auth/wechat/qr") {
+        if (!authentication) { sendJson(response, 501, { error: "WeChat QR login is not configured" }); return; }
+        sendJson(response, 201, await authentication.wechatQrLogin.create());
+      } else if (request.method === "GET" && /^\/api\/auth\/wechat\/qr\/[^/]+$/.test(url.pathname)) {
+        if (!authentication) { sendJson(response, 501, { error: "WeChat QR login is not configured" }); return; }
+        const id = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
+        const result = await authentication.wechatQrLogin.poll(id);
         if (result.credentials) authentication.sessions.setCredentials(result.credentials);
         sendJson(response, 200, { status: result.status });
       } else if (request.method === "GET" && url.pathname === "/api/session") {
