@@ -117,6 +117,13 @@ function pauseLyricsFollow() {
   }, 10_000);
 }
 
+function handleGlobalKeydown(event) {
+  if (event.key !== "Escape" || !showLyrics.value) return;
+  const target = event.target;
+  if (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
+  showLyrics.value = false;
+}
+
 function updateShortcutVisibility() {
   const mainElement = mainView.value;
   if (!mainElement) return;
@@ -319,6 +326,7 @@ async function logout() {
 
 onMounted(async () => {
   window.addEventListener("resize", updateShortcutVisibility);
+  window.addEventListener("keydown", handleGlobalKeydown);
   removeMediaSessionActions = registerMediaSessionActions(navigator.mediaSession, {
     play: toggle,
     pause: () => audio.value?.pause(),
@@ -345,6 +353,7 @@ onBeforeUnmount(() => {
   clearTimeout(lyricsResumeTimer);
   removeMediaSessionActions();
   window.removeEventListener("resize", updateShortcutVisibility);
+  window.removeEventListener("keydown", handleGlobalKeydown);
 });
 </script>
 
