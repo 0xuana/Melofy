@@ -1,0 +1,19 @@
+{
+  "name": "@qqmusic-web/api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "test": "node --import tsx --test src/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@qqmusic-web/installed-profile-adapter": "0.1.0",
+    "@qqmusic-web/provider": "0.1.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.6"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "qqmusic-web-player",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "npm@12.0.2",
+  "type": "module",
+  "workspaces": [
+    "api",
+    "web",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "predev": "node scripts/check-runtime.cjs",
+    "dev": "node scripts/dev.mjs",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}
+
