@@ -4,6 +4,7 @@ import { createQQLogin, endSession, loadLyrics, loadPlaylists, loadPlaylistTrack
 import AppIcon from "./components/AppIcon.vue";
 import IconButton from "./components/IconButton.vue";
 import PlayerBar from "./components/PlayerBar.vue";
+import { registerMediaSessionActions } from "./mediaSession.js";
 import QueuePanel from "./components/QueuePanel.vue";
 import { parseLyrics } from "./lyrics.js";
 import { useQueue } from "./stores/queue.js";
@@ -39,6 +40,7 @@ let lyricsResumeTimer;
 let lyricsFollowPaused = false;
 let loginPolling = false;
 let playbackRequest = 0;
+let removeMediaSessionActions = () => {};
 
 const visibleTracks = computed(() => {
   const needle = filter.value.trim().toLowerCase();
@@ -55,7 +57,20 @@ watch(() => queue.current, (track) => {
   document.title = track?.title
     ? `Melofy - ${track.title}${artist ? `-${artist}` : ""}`
     : "Melofy";
+  const mediaSession = navigator.mediaSession;
+  if (mediaSession && typeof MediaMetadata === "function") {
+    mediaSession.metadata = track ? new MediaMetadata({
+      title: track.title,
+      artist: artist || "",
+      album: track.album?.name || "",
+      artwork: track.album?.coverUrl ? [{ src: track.album.coverUrl }] : [],
+    }) : null;
+  }
 }, { immediate: true });
+
+watch(playing, (isPlaying) => {
+  if (navigator.mediaSession) navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
+});
 
 function setTrackElement(trackId, element) {
   if (element) trackElements.set(trackId, element);
@@ -275,6 +290,12 @@ async function logout() {
 
 onMounted(async () => {
   window.addEventListener("resize", updateShortcutVisibility);
+  removeMediaSessionActions = registerMediaSessionActions(navigator.mediaSession, {
+    play: toggle,
+    pause: () => audio.value?.pause(),
+    previous: () => advance(-1),
+    next: () => advance(1),
+  });
   if (audio.value) audio.value.volume = volume.value;
   try { session.value = await loadSession(); if (session.value) await loadLibrary(); else loading.value = false; }
   catch (reason) { loading.value = false; error.value = reason.message || "登录状态加载失败"; }
@@ -293,6 +314,7 @@ watch([activeLyric, showLyrics], async ([, isVisible]) => {
 onBeforeUnmount(() => {
   clearInterval(loginTimer);
   clearTimeout(lyricsResumeTimer);
+  removeMediaSessionActions();
   window.removeEventListener("resize", updateShortcutVisibility);
 });
 </script>
