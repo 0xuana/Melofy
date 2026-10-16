@@ -29,7 +29,13 @@ const volume = ref(savedVolumePreferences.volume);
 const lastAudibleVolume = ref(savedVolumePreferences.lastAudibleVolume);
 const savedThemePreferences = loadThemePreferences();
 const theme = ref(savedThemePreferences.theme);
-const followSystemTheme = ref(savedThemePreferences.followSystem);
+const appearanceMode = ref(savedThemePreferences.mode);
+const appearanceOptions = [
+  { value: "light", label: "浅色" },
+  { value: "dark", label: "深色" },
+  { value: "system", label: "跟随系统" },
+];
+const systemColorScheme = window.matchMedia("(prefers-color-scheme: dark)");
 const lyricLines = ref([]);
 const showLyrics = ref(false);
 const lyricsScroll = ref();
@@ -81,11 +87,17 @@ watch(playing, (isPlaying) => {
   if (navigator.mediaSession) navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
 });
 
-watch([theme, followSystemTheme], ([selectedTheme, followsSystem]) => {
-  const preferences = { theme: selectedTheme, followSystem: followsSystem };
-  applyThemePreferences(document.documentElement, preferences);
+watch([theme, appearanceMode], ([selectedTheme, selectedMode]) => {
+  const preferences = { theme: selectedTheme, mode: selectedMode };
+  applyThemePreferences(document.documentElement, preferences, systemColorScheme.matches);
   saveThemePreferences(preferences);
 }, { immediate: true });
+
+function updateSystemColorScheme() {
+  if (appearanceMode.value === "system") {
+    applyThemePreferences(document.documentElement, { theme: theme.value, mode: appearanceMode.value }, systemColorScheme.matches);
+  }
+}
 
 function setTrackElement(trackId, element) {
   if (element) trackElements.set(trackId, element);
@@ -328,6 +340,7 @@ async function logout() {
 onMounted(async () => {
   window.addEventListener("resize", updateShortcutVisibility);
   window.addEventListener("keydown", handleGlobalKeydown);
+  systemColorScheme.addEventListener("change", updateSystemColorScheme);
   removeMediaSessionActions = registerMediaSessionActions(navigator.mediaSession, {
     play: toggle,
     pause: () => audio.value?.pause(),
@@ -355,6 +368,7 @@ onBeforeUnmount(() => {
   removeMediaSessionActions();
   window.removeEventListener("resize", updateShortcutVisibility);
   window.removeEventListener("keydown", handleGlobalKeydown);
+  systemColorScheme.removeEventListener("change", updateSystemColorScheme);
 });
 </script>
 
@@ -394,7 +408,7 @@ onBeforeUnmount(() => {
       </div>
     </aside>
     <main ref="mainView" @scroll="updateShortcutVisibility">
-      <header class="topbar"><label class="search-box"><AppIcon name="search" /><input v-model="filter" placeholder="在当前歌单中搜索"></label><div class="topbar-actions"><div class="theme-menu-wrap"><button class="icon-button" :class="{ active: showThemeMenu }" type="button" aria-label="外观设置" :aria-expanded="showThemeMenu" @click.stop="showThemeMenu = !showThemeMenu; showAccountMenu = false"><AppIcon name="settings" /></button><div v-if="showThemeMenu" class="account-dropdown theme-dropdown" @click.stop><strong class="menu-title">外观设置</strong><label class="account-setting"><span>色彩主题</span><select v-model="theme" aria-label="色彩主题"><option value="pink">柔粉</option><option value="orange">暖橙</option><option value="green">清绿</option></select></label><label class="account-follow-setting"><input v-model="followSystemTheme" type="checkbox"><span>跟随浏览器切换深色模式</span></label></div></div><div class="account-menu-wrap"><button class="account-trigger icon-button" :class="{ active: showAccountMenu }" type="button" :aria-label="showAccountMenu ? '关闭账号菜单' : '打开账号菜单'" :aria-expanded="showAccountMenu" @click.stop="showAccountMenu = !showAccountMenu; showThemeMenu = false"><img v-if="session?.avatarUrl" :src="session.avatarUrl" alt="" /><AppIcon v-else name="account" /></button><div v-if="showAccountMenu" class="account-dropdown" @click.stop><div class="account-summary"><img v-if="session?.avatarUrl" class="account-avatar" :src="session.avatarUrl" alt="" /><span v-else class="account-avatar">Q</span><span><strong>QQ 音乐账号</strong><small>{{ session?.accountId || '本机已登录' }}</small></span></div><button class="account-action" :disabled="loggingOut" @click="logout"><AppIcon name="logout" /><span>{{ loggingOut ? '正在退出…' : '退出登录' }}</span></button></div></div></div></header>
+      <header class="topbar"><label class="search-box"><AppIcon name="search" /><input v-model="filter" placeholder="在当前歌单中搜索"></label><div class="topbar-actions"><div class="theme-menu-wrap"><button class="icon-button" :class="{ active: showThemeMenu }" type="button" aria-label="外观设置" :aria-expanded="showThemeMenu" @click.stop="showThemeMenu = !showThemeMenu; showAccountMenu = false"><AppIcon name="settings" /></button><div v-if="showThemeMenu" class="account-dropdown theme-dropdown" @click.stop><strong class="menu-title">外观设置</strong><label class="account-setting"><span>色彩主题</span><select v-model="theme" aria-label="色彩主题"><option value="pink">柔粉</option><option value="orange">暖橙</option><option value="green">清绿</option><option value="blue">清蓝</option></select></label><div class="appearance-setting" role="group" aria-label="外观模式" :style="{ '--appearance-index': appearanceOptions.findIndex(option => option.value === appearanceMode) }"><span class="appearance-slider" aria-hidden="true"></span><button v-for="option in appearanceOptions" :key="option.value" type="button" :class="{ active: appearanceMode === option.value }" :aria-pressed="appearanceMode === option.value" @click="appearanceMode = option.value">{{ option.label }}</button></div></div></div><div class="account-menu-wrap"><button class="account-trigger icon-button" :class="{ active: showAccountMenu }" type="button" :aria-label="showAccountMenu ? '关闭账号菜单' : '打开账号菜单'" :aria-expanded="showAccountMenu" @click.stop="showAccountMenu = !showAccountMenu; showThemeMenu = false"><img v-if="session?.avatarUrl" :src="session.avatarUrl" alt="" /><AppIcon v-else name="account" /></button><div v-if="showAccountMenu" class="account-dropdown" @click.stop><div class="account-summary"><img v-if="session?.avatarUrl" class="account-avatar" :src="session.avatarUrl" alt="" /><span v-else class="account-avatar">Q</span><span><strong>QQ 音乐账号</strong><small>{{ session?.accountId || '本机已登录' }}</small></span></div><button class="account-action" :disabled="loggingOut" @click="logout"><AppIcon name="logout" /><span>{{ loggingOut ? '正在退出…' : '退出登录' }}</span></button></div></div></div></header>
       <section class="hero"><div class="cover" :style="selectedPlaylist?.coverUrl ? { backgroundImage: `url(${selectedPlaylist.coverUrl})` } : {}">{{ selectedPlaylist?.coverUrl ? '' : selectedPlaylist?.kind === 'liked' ? '♥' : '♫' }}</div><div class="hero-copy"><p class="eyebrow">{{ selectedPlaylist?.kind === 'collected' ? 'COLLECTED PLAYLIST' : selectedPlaylist?.kind === 'liked' ? 'YOUR FAVORITES' : 'YOUR PLAYLIST' }}</p><h1>{{ selectedPlaylist?.title || 'Melofy' }}</h1><p>{{ tracks.length }} 首歌曲 · 已从 QQ 音乐完整分页加载</p></div></section>
       <p v-if="error" class="error">{{ error }}</p>
       <section class="list">
