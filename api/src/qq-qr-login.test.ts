@@ -86,3 +86,32 @@ test("follows QQ authorization redirects and carries cookies until p_skey is iss
   assert.ok(requests.some((request) => request.url.includes("ptqrlogin") && request.cookie.includes("pt_login_sig=login-context")));
   assert.ok(requests.some((request) => request.url.includes("oauth2.0/authorize") && request.cookie.includes("p_skey=redirect-cookie")));
 });
+
+test("reports redacted authorization-hop context when p_skey is missing", async () => {
+  const fetchMock: typeof fetch = async (input) => {
+    const url = String(input);
+    const path = new URL(url).pathname;
+    if (path === "/cgi-bin/xlogin") {
+      return new Response("xlogin", { status: 200, headers: { "set-cookie": "pt_login_sig=login-context; Path=/" } });
+    }
+    if (path.includes("ptqrshow")) {
+      return new Response(new Uint8Array([1]), { status: 200, headers: { "set-cookie": "qrsig=qr-cookie; Path=/" } });
+    }
+    if (path.includes("ptqrlogin")) {
+      return new Response("ptuiCB('0','0','https://ssl.ptlogin2.graph.qq.com/check_sig?uin=private-uin&ptsigx=private-signature','0','登录成功','')", { status: 200 });
+    }
+    if (path.endsWith("/check_sig")) {
+      return new Response("authorization denied", { status: 200, headers: { "set-cookie": "session_hint=secret-cookie; Path=/" } });
+    }
+    throw new Error(`Unexpected URL in test: ${url}`);
+  };
+  const service = new QQQrLoginService(fetchMock);
+  const qr = await service.create();
+
+  await assert.rejects(service.poll(qr.id), (reason: unknown) => {
+    assert.ok(reason instanceof Error);
+    assert.match(reason.message, /host=ssl\.ptlogin2\.graph\.qq\.com, status=200, redirect=none, set-cookie=session_hint/);
+    assert.doesNotMatch(reason.message, /private-uin|private-signature|secret-cookie/);
+    return true;
+  });
+});

@@ -150,15 +150,26 @@ export class QQQrLoginService {
     const cookies = new Map(initialCookies);
     let authorizationUrl = redirectUrl.toString();
     let referer = "https://xui.ptlogin2.qq.com/";
+    let lastHop = "no authorization response";
     for (let hop = 0; hop < 10; hop++) {
       const response = await this.#fetch(authorizationUrl, {
         headers: { referer, ...(cookies.size ? { cookie: cookieHeader(cookies) } : {}) },
         redirect: "manual",
       });
+      const location = response.headers.get("location");
+      const responseCookieNames = [...cookieMap(setCookies(response.headers)).keys()];
+      let redirectHost = "none";
+      if (location) {
+        try {
+          redirectHost = new URL(location, authorizationUrl).hostname;
+        } catch {
+          redirectHost = "invalid";
+        }
+      }
+      lastHop = `host=${new URL(authorizationUrl).hostname}, status=${response.status}, redirect=${redirectHost}, set-cookie=${responseCookieNames.join(",") || "none"}`;
       mergeCookies(cookies, response.headers);
       if (cookies.has("p_skey")) break;
 
-      const location = response.headers.get("location");
       if (!location || response.status < 300 || response.status >= 400) break;
       const nextUrl = new URL(location, authorizationUrl);
       if (nextUrl.protocol !== "https:" || !nextUrl.hostname.endsWith(".qq.com")) {
@@ -168,7 +179,7 @@ export class QQQrLoginService {
       authorizationUrl = nextUrl.toString();
     }
     const pSkey = cookies.get("p_skey");
-    if (!pSkey) throw new Error("QQ authorization did not provide p_skey");
+    if (!pSkey) throw new Error(`QQ authorization did not provide p_skey (${lastHop})`);
 
     const form = new URLSearchParams({ response_type: "code", client_id: "100497308", redirect_uri: "https://y.qq.com/portal/wx_redirect.html?login_type=1&surl=https://y.qq.com/", scope: "get_user_info,get_app_friends", state: "state", switch: "", from_ptlogin: "1", src: "1", update_auth: "1", openapi: "1010_1030", g_tk: String(hash33(pSkey, 5381)), auth_time: String(Date.now()), ui: randomUUID() });
     const authorized = await this.#fetch("https://graph.qq.com/oauth2.0/authorize", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", cookie: cookieHeader(cookies) }, body: form, redirect: "manual" });
