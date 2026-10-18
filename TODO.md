@@ -1,6 +1,5 @@
-# QQMusic Web Player: next pass
+# QQ QR login follow-up
 
-- [ ] investigation: resolve the QQRefreshToken and RefreshMusicKey call sites and request parameters in QQMusic_Protocol.dll.
-- [ ] investigation: capture a credential-renewal request from a controlled Windows QQMusic runtime and document its request and response fields.
-- [ ] api: implement QQMusic credential renewal only after the Windows or Linux artifact confirms a usable renewal contract.
-- [ ] api: integrate QR login from refer/qq-music-api when that project provides a QQ authorization and session contract.
+- [ ] analysis: capture a successful account-controlled QQ QR login and document callback fields without recording credential values.
+- [ ] api: implement the QQMusic credential exchange from verified runtime or native-protocol evidence.
+- [ ] test: add a redacted successful-scan fixture for persistent QQMusic credentials.
