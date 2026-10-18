@@ -5,6 +5,8 @@ import AppIcon from "./components/AppIcon.vue";
 import IconButton from "./components/IconButton.vue";
 import PlayerBar from "./components/PlayerBar.vue";
 import { registerMediaSessionActions } from "./mediaSession.js";
+import { isUnplayableTrack, loadTrackStream, unplayableLabel } from "./playbackFailure.js";
+import { formatTrackDuration } from "./trackPresentation.js";
 import { applyThemePreferences, loadThemePreferences, saveThemePreferences } from "./themePreferences.js";
 import { loadVolumePreferences, saveVolumePreferences, toggleMuteVolume } from "./volumePreferences.js";
 import QueuePanel from "./components/QueuePanel.vue";
@@ -15,6 +17,7 @@ const queue = useQueue();
 const audio = ref();
 const mainView = ref();
 const tracks = ref([]);
+const unplayableTrackReasons = ref(new Map());
 const playlists = ref([]);
 const selectedPlaylist = ref(null);
 const filter = ref("");
@@ -192,9 +195,18 @@ async function loadCurrent(track) {
   }).catch(() => {});
   try {
     error.value = "";
-    const stream = await resolveStream(track.id, queue.quality);
-    if (request !== playbackRequest || queue.current?.id !== track.id) return;
-    audio.value.src = stream.url;
+    const loaded = await loadTrackStream(track, {
+      resolve: (trackId) => resolveStream(trackId, queue.quality),
+      setSource: (url) => { if (request === playbackRequest && queue.current?.id === track.id) audio.value.src = url; },
+      markUnplayable: (trackId, reason) => {
+        if (request === playbackRequest && queue.current?.id === track.id) markTrackUnplayable(trackId, reason);
+      },
+      skip: async () => {
+        if (request !== playbackRequest || queue.current?.id !== track.id) return;
+        await advance(1, "unplayable");
+      },
+    });
+    if (request !== playbackRequest || queue.current?.id !== track.id || !loaded) return;
     await audio.value.play();
   } catch (reason) {
     if (request === playbackRequest) {
@@ -202,6 +214,18 @@ async function loadCurrent(track) {
       error.value = reason.message || "播放失败";
     }
   }
+}
+
+function markTrackUnplayable(trackId, reason) {
+  unplayableTrackReasons.value = new Map(unplayableTrackReasons.value).set(trackId, reason);
+}
+
+function isTrackUnplayable(track) {
+  return unplayableTrackReasons.value.has(track.id) || isUnplayableTrack(track);
+}
+
+function trackUnplayableLabel(track) {
+  return unplayableLabel(unplayableTrackReasons.value.get(track.id) || (track.playable === false ? "unavailable" : null));
 }
 
 async function advance(delta, reason = "manual") {
@@ -262,7 +286,10 @@ async function selectPlaylist(playlist) {
   selectedPlaylist.value = playlist;
   filter.value = "";
   loading.value = true;
-  try { tracks.value = await loadPlaylistTracks(playlist); }
+  try {
+    tracks.value = await loadPlaylistTracks(playlist);
+    unplayableTrackReasons.value = new Map(tracks.value.filter((track) => track.playable === false).map((track) => [track.id, "unavailable"]));
+  }
   catch (reason) { error.value = reason.message || "歌单加载失败"; tracks.value = []; }
   finally { loading.value = false; }
 }
@@ -412,10 +439,10 @@ onBeforeUnmount(() => {
       <section class="hero"><div class="cover" :style="selectedPlaylist?.coverUrl ? { backgroundImage: `url(${selectedPlaylist.coverUrl})` } : {}">{{ selectedPlaylist?.coverUrl ? '' : selectedPlaylist?.kind === 'liked' ? '♥' : '♫' }}</div><div class="hero-copy"><p class="eyebrow">{{ selectedPlaylist?.kind === 'collected' ? 'COLLECTED PLAYLIST' : selectedPlaylist?.kind === 'liked' ? 'YOUR FAVORITES' : 'YOUR PLAYLIST' }}</p><h1>{{ selectedPlaylist?.title || 'Melofy' }}</h1><p>{{ tracks.length }} 首歌曲 · 已从 QQ 音乐完整分页加载</p></div></section>
       <p v-if="error" class="error">{{ error }}</p>
       <section class="list">
-        <div class="list-head"><span>#</span><span>歌曲</span><span>专辑</span><span>操作</span></div>
+        <div class="list-head"><span>#</span><span>歌曲</span><span>专辑</span><span>时长</span><span>操作</span></div>
         <p v-if="loading" class="empty">正在加载歌单…</p>
-        <div v-for="(track, index) in visibleTracks" :key="track.id" :ref="(element) => setTrackElement(track.id, element)" class="track" :class="{ 'is-current': track.id === queue.currentId }" @dblclick="play(track)">
-          <span class="track-index"><span v-if="track.id === queue.currentId" class="playing-meter" :class="{ paused: !playing }" aria-label="当前播放"><i></i><i></i><i></i></span><template v-else>{{ index + 1 }}</template></span><span class="song-cell"><strong>{{ track.title }}</strong><small>{{ track.artists.map(a => a.name).join(' / ') }}</small></span><span class="album-cell">{{ track.album?.name || '—' }}</span>
+        <div v-for="(track, index) in visibleTracks" :key="track.id" :ref="(element) => setTrackElement(track.id, element)" class="track" :class="{ 'is-current': track.id === queue.currentId, 'is-unplayable': isTrackUnplayable(track) }" @dblclick="play(track)">
+          <span class="track-index"><span v-if="track.id === queue.currentId" class="playing-meter" :class="{ paused: !playing }" aria-label="当前播放"><i></i><i></i><i></i></span><template v-else>{{ index + 1 }}</template></span><span class="song-cell"><strong>{{ track.title }}<span v-if="isTrackUnplayable(track)" class="unplayable-badge">{{ trackUnplayableLabel(track) }}</span></strong><small>{{ track.artists.map(a => a.name).join(' / ') }}</small></span><span class="album-cell">{{ track.album?.name || '—' }}</span><span class="duration-cell">{{ formatTrackDuration(track.durationMs) }}</span>
           <span class="actions"><IconButton icon="play" :label="`播放 ${track.title}`" variant="row-play" @click="play(track)" /><IconButton icon="forward" :label="`${track.title} 下一首播放`" @click="queue.playNext(track)" /><IconButton icon="add" :label="`${track.title} 加入队列`" @click="queue.append(track)" /></span>
         </div>
       </section>

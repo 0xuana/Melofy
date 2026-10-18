@@ -1,7 +1,12 @@
 async function json(path) {
   const response = await fetch(path);
   const body = await response.json();
-  if (!response.ok) throw new Error(body.error || body.message || `请求失败 (${response.status})`);
+  if (!response.ok) {
+    const error = new Error(body.error || body.message || `请求失败 (${response.status})`);
+    if (typeof body.reason === "string") error.reason = body.reason;
+    if (typeof body.trackId === "string") error.trackId = body.trackId;
+    throw error;
+  }
   return body;
 }
 

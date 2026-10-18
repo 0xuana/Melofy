@@ -79,6 +79,17 @@ test("the now-playing cover has a visible accent hover state in dark mode", () =
   assert.match(declaration(rule, "box-shadow"), /color-mix\(in srgb, var\(--primary-color\)/);
 });
 
+test("unplayable track indicators derive from the selected theme in light and dark modes", () => {
+  for (const token of ["--unplayable-text", "--unplayable-surface", "--unplayable-border"]) {
+    const light = declaration(findRuleWithDeclaration(":root", token), token);
+    const dark = declaration(findRuleWithDeclaration(':root[data-scheme="dark"]', token), token);
+    assert.match(light, /var\(--color-primary\)|var\(--primary-color\)/, `${token} follows the selected light palette`);
+    assert.match(dark, /var\(--color-primary\)|var\(--primary-color\)/, `${token} follows the selected dark palette`);
+  }
+  assert.equal(declaration(findRule(".unplayable-badge"), "color"), "var(--unplayable-text)");
+  assert.equal(declaration(findRule(".track.is-unplayable:not(.is-current)"), "background"), "var(--unplayable-surface)");
+});
+
 test("dark shortcut and account buttons retain their hover treatment", () => {
   const shortcutRule = findRule(':root[data-scheme="dark"] .list-shortcuts .icon-button:hover');
   const accountRule = findRule(':root[data-scheme="dark"] .topbar-actions .account-trigger:hover');
