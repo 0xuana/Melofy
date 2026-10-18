@@ -1,5 +1,8 @@
 # QQ QR login next pass
 
-- [ ] analysis: capture one account-controlled QR login and record only redacted authorization-hop metadata.
-- [ ] api: implement the QQMusic credential exchange from verified callback and runtime evidence.
-- [ ] test: add a redacted successful-scan fixture for persistent QQMusic credentials.
+- [x] api: split combined Set-Cookie headers without splitting Expires dates.
+- [x] test: verify p_skey extraction from combined Set-Cookie headers.
+- [x] test: verify empty p_skey is reported without exposing cookie contents.
+- [x] api: run the API test suite after the cookie parsing change.
+- [x] api: run TypeScript typecheck after the cookie parsing change.
+- [ ] analysis: retry one account-controlled QR login and capture only redacted authorization-hop metadata.
