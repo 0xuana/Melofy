@@ -6,6 +6,8 @@ export type QRLoginStatus = "waiting" | "scanned" | "expired" | "refused" | "com
 
 interface PendingLogin {
   readonly qrsig: string;
+  readonly xloginUrl: string;
+  readonly cookies: Map<string, string>;
   readonly expiresAt: number;
 }
 
@@ -51,6 +53,19 @@ function cookieHeader(cookies: ReadonlyMap<string, string>): string {
   return [...cookies].map(([name, value]) => `${name}=${value}`).join("; ");
 }
 
+function mergeCookies(target: Map<string, string>, headers: Headers): void {
+  for (const [name, value] of cookieMap(setCookies(headers))) target.set(name, value);
+}
+
+function createXloginUrl(): URL {
+  const url = new URL("https://xui.ptlogin2.qq.com/cgi-bin/xlogin");
+  for (const [key, value] of Object.entries({
+    appid: "716027609", daid: "383", s_url: "https://graph.qq.com/oauth2.0/login_jump",
+    pt_3rd_aid: "100497308", pt_uistyle: "40", ptlang: "2052",
+  })) url.searchParams.set(key, value);
+  return url;
+}
+
 function statusFor(code: number): QRLoginStatus {
   if (code === 66) return "waiting";
   if (code === 67) return "scanned";
@@ -69,15 +84,28 @@ export class QQQrLoginService {
   }
 
   async create(): Promise<{ id: string; imageDataUrl: string; expiresAt: string }> {
-    const url = new URL("https://ssl.ptlogin2.qq.com/ptqrshow");
-    for (const [key, value] of Object.entries({ appid: "716027609", e: "2", l: "M", s: "3", d: "72", v: "4", t: String(Math.random()), daid: "383", pt_3rd_aid: "100497308" })) url.searchParams.set(key, value);
-    const response = await this.#fetch(url, { headers: { referer: "https://xui.ptlogin2.qq.com/" }, redirect: "manual" });
+    const cookies = new Map<string, string>();
+    const xloginUrl = createXloginUrl();
+    const xlogin = await this.#fetch(xloginUrl, {
+      headers: { referer: "https://y.qq.com/" }, redirect: "manual",
+    });
+    if (!xlogin.ok) throw new Error(`QQ xlogin request failed with HTTP ${xlogin.status}`);
+    mergeCookies(cookies, xlogin.headers);
+    if (!cookies.has("pt_login_sig")) throw new Error("QQ xlogin response did not include pt_login_sig");
+
+    const url = new URL("https://xui.ptlogin2.qq.com/ssl/ptqrshow");
+    for (const [key, value] of Object.entries({ s: "8", e: "0", appid: "716027609", type: "0", t: String(Math.random()), daid: "383", pt_3rd_aid: "100497308" })) url.searchParams.set(key, value);
+    const response = await this.#fetch(url, {
+      headers: { referer: xloginUrl.toString(), ...(cookies.size ? { cookie: cookieHeader(cookies) } : {}) },
+      redirect: "manual",
+    });
     if (!response.ok) throw new Error(`QQ QR request failed with HTTP ${response.status}`);
-    const qrsig = cookieMap(setCookies(response.headers)).get("qrsig");
+    mergeCookies(cookies, response.headers);
+    const qrsig = cookies.get("qrsig");
     if (!qrsig) throw new Error("QQ QR response did not include qrsig");
     const id = randomUUID();
     const expiresAt = Date.now() + 120_000;
-    this.#pending.set(id, { qrsig, expiresAt });
+    this.#pending.set(id, { qrsig, xloginUrl: xloginUrl.toString(), cookies, expiresAt });
     const bytes = Buffer.from(await response.arrayBuffer());
     return { id, imageDataUrl: `data:image/png;base64,${bytes.toString("base64")}`, expiresAt: new Date(expiresAt).toISOString() };
   }
@@ -94,10 +122,12 @@ export class QQQrLoginService {
       h: "1", t: "1", g: "1", from_ui: "1", ptlang: "2052", action: `0-0-${Date.now()}`,
       js_ver: "20102616", js_type: "1", pt_uistyle: "40", aid: "716027609", daid: "383",
       pt_3rd_aid: "100497308", has_onekey: "1",
+      login_sig: pending.cookies.get("pt_login_sig") ?? "",
     };
     for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
-    const response = await this.#fetch(url, { headers: { cookie: `qrsig=${pending.qrsig}`, referer: "https://xui.ptlogin2.qq.com/" } });
+    const response = await this.#fetch(url, { headers: { cookie: cookieHeader(pending.cookies), referer: pending.xloginUrl } });
     if (!response.ok) throw new Error(`QQ QR polling failed with HTTP ${response.status}`);
+    mergeCookies(pending.cookies, response.headers);
     const parsed = parsePtuiCallback(await response.text());
     const status = statusFor(parsed.code);
     if (status !== "complete") {
@@ -105,27 +135,27 @@ export class QQQrLoginService {
       return { status };
     }
     this.#pending.delete(id);
-    return { status, credentials: await this.#authorize(parsed.redirect) };
+    return { status, credentials: await this.#authorize(parsed.redirect, pending.cookies) };
   }
 
-  async #authorize(redirect: string): Promise<PersistentQQMusicCredentials> {
+  async #authorize(redirect: string, initialCookies: ReadonlyMap<string, string>): Promise<PersistentQQMusicCredentials> {
     const redirectUrl = new URL(redirect);
     const uin = redirectUrl.searchParams.get("uin");
     const sigx = redirectUrl.searchParams.get("ptsigx");
     if (!uin || !sigx) throw new Error("QQ login redirect omitted uin or ptsigx");
+    if (redirectUrl.protocol !== "https:" || !(redirectUrl.hostname === "qq.com" || redirectUrl.hostname.endsWith(".qq.com"))) {
+      throw new Error("QQ login callback redirected outside QQ domains");
+    }
 
-    const checkUrl = new URL("https://ssl.ptlogin2.graph.qq.com/check_sig");
-    const checkParams = { uin, pttype: "1", service: "ptqrlogin", nodirect: "0", ptsigx: sigx, s_url: "https://graph.qq.com/oauth2.0/login_jump", ptlang: "2052", ptredirect: "100", aid: "716027609", daid: "383", j_later: "0", low_login_hour: "0", regmaster: "0", pt_login_type: "3", pt_aid: "0", pt_aaid: "16", pt_light: "0", pt_3rd_aid: "100497308" };
-    for (const [key, value] of Object.entries(checkParams)) checkUrl.searchParams.set(key, value);
-    const cookies = new Map<string, string>();
-    let authorizationUrl = checkUrl.toString();
+    const cookies = new Map(initialCookies);
+    let authorizationUrl = redirectUrl.toString();
     let referer = "https://xui.ptlogin2.qq.com/";
     for (let hop = 0; hop < 10; hop++) {
       const response = await this.#fetch(authorizationUrl, {
         headers: { referer, ...(cookies.size ? { cookie: cookieHeader(cookies) } : {}) },
         redirect: "manual",
       });
-      for (const [name, value] of cookieMap(setCookies(response.headers))) cookies.set(name, value);
+      mergeCookies(cookies, response.headers);
       if (cookies.has("p_skey")) break;
 
       const location = response.headers.get("location");

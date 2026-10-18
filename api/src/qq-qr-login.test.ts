@@ -21,6 +21,9 @@ test("creates an opaque QR session and reports a waiting poll", async () => {
   const fetchMock: typeof fetch = async (input) => {
     const url = String(input);
     calls.push(url);
+    if (url.includes("/cgi-bin/xlogin")) {
+      return new Response("xlogin", { status: 200, headers: { "set-cookie": "pt_login_sig=login-context; Path=/" } });
+    }
     if (url.includes("ptqrshow")) {
       return new Response(new Uint8Array([1, 2, 3]), { status: 200, headers: { "set-cookie": "qrsig=private-value; Path=/; HttpOnly" } });
     }
@@ -31,7 +34,9 @@ test("creates an opaque QR session and reports a waiting poll", async () => {
   assert.match(qr.id, /^[0-9a-f-]{36}$/);
   assert.equal(qr.imageDataUrl, "data:image/png;base64,AQID");
   assert.equal((await service.poll(qr.id)).status, "waiting");
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 3);
+  assert.match(calls[0]!, /cgi-bin\/xlogin\?/);
+  assert.match(calls[2]!, /login_sig=login-context/);
   assert.doesNotMatch(JSON.stringify(qr), /private-value/);
 });
 
@@ -42,6 +47,9 @@ test("follows QQ authorization redirects and carries cookies until p_skey is iss
     const path = new URL(url).pathname;
     const cookie = new Headers(init?.headers).get("cookie") ?? "";
     requests.push({ url, cookie });
+    if (path === "/cgi-bin/xlogin") {
+      return new Response("xlogin", { status: 200, headers: { "set-cookie": "pt_login_sig=login-context; Path=/" } });
+    }
     if (path.includes("ptqrshow")) {
       return new Response(new Uint8Array([1]), { status: 200, headers: { "set-cookie": "qrsig=qr-cookie; Path=/" } });
     }
@@ -75,5 +83,6 @@ test("follows QQ authorization redirects and carries cookies until p_skey is iss
   assert.equal(result.status, "complete");
   assert.equal(result.credentials?.accountId, "12345");
   assert.equal(result.credentials?.pSkey, "redirect-cookie");
+  assert.ok(requests.some((request) => request.url.includes("ptqrlogin") && request.cookie.includes("pt_login_sig=login-context")));
   assert.ok(requests.some((request) => request.url.includes("oauth2.0/authorize") && request.cookie.includes("p_skey=redirect-cookie")));
 });
