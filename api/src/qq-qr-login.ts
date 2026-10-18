@@ -36,15 +36,16 @@ export function parsePtuiCallback(value: string): { code: number; redirect: stri
 
 function setCookies(headers: Headers): string[] {
   const extended = headers as Headers & { getSetCookie?: () => string[] };
-  return extended.getSetCookie?.() ?? (headers.get("set-cookie") ? [headers.get("set-cookie")!] : []);
+  const values = extended.getSetCookie?.() ?? (headers.get("set-cookie") ? [headers.get("set-cookie")!] : []);
+  return values.flatMap((value) => value.split(/,(?=\s*[!#$%&'*+.^_`|~0-9A-Za-z-]+\s*=)/));
 }
 
 function cookieMap(values: readonly string[]): Map<string, string> {
   const result = new Map<string, string>();
   for (const value of values) {
-    const pair = value.split(";", 1)[0];
+    const pair = value.split(";", 1)[0]?.trim();
     const separator = pair?.indexOf("=") ?? -1;
-    if (pair && separator > 0) result.set(pair.slice(0, separator), pair.slice(separator + 1));
+    if (pair && separator > 0) result.set(pair.slice(0, separator).trim(), pair.slice(separator + 1).trim());
   }
   return result;
 }
@@ -166,9 +167,10 @@ export class QQQrLoginService {
           redirectHost = "invalid";
         }
       }
-      lastHop = `host=${new URL(authorizationUrl).hostname}, status=${response.status}, redirect=${redirectHost}, set-cookie=${responseCookieNames.join(",") || "none"}`;
       mergeCookies(cookies, response.headers);
-      if (cookies.has("p_skey")) break;
+      const pSkeyState = cookies.get("p_skey") ? "non-empty" : cookies.has("p_skey") ? "empty" : "absent";
+      lastHop = `host=${new URL(authorizationUrl).hostname}, status=${response.status}, redirect=${redirectHost}, set-cookie=${responseCookieNames.join(",") || "none"}, p_skey=${pSkeyState}`;
+      if (pSkeyState === "non-empty") break;
 
       if (!location || response.status < 300 || response.status >= 400) break;
       const nextUrl = new URL(location, authorizationUrl);

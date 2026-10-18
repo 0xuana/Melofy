@@ -62,7 +62,7 @@ test("follows QQ authorization redirects and carries cookies until p_skey is iss
     if (path.endsWith("/login_jump")) {
       return new Response(null, { status: 302, headers: {
         location: "https://y.qq.com/portal/wx_redirect.html?login_type=1",
-        "set-cookie": "p_skey=redirect-cookie; Path=/; Secure",
+        "set-cookie": "pt2gguin=o123; Path=/, p_uin=o123; Path=/, pt4_token=ticket; Path=/, p_skey_forbid=0; Path=/, p_skey=redirect-cookie; Expires=Wed, 21 Oct 2030 07:28:00 GMT; Path=/; Secure, pt_oauth_token=oauth; Path=/, pt_login_type=2; Path=/",
       } });
     }
     if (path.endsWith("/authorize")) {
@@ -84,7 +84,9 @@ test("follows QQ authorization redirects and carries cookies until p_skey is iss
   assert.equal(result.credentials?.accountId, "12345");
   assert.equal(result.credentials?.pSkey, "redirect-cookie");
   assert.ok(requests.some((request) => request.url.includes("ptqrlogin") && request.cookie.includes("pt_login_sig=login-context")));
-  assert.ok(requests.some((request) => request.url.includes("oauth2.0/authorize") && request.cookie.includes("p_skey=redirect-cookie")));
+  const authorizationRequest = requests.find((request) => request.url.includes("oauth2.0/authorize"));
+  assert.ok(authorizationRequest?.cookie.includes("p_skey=redirect-cookie"));
+  assert.ok(authorizationRequest?.cookie.includes("p_uin=o123"));
 });
 
 test("reports redacted authorization-hop context when p_skey is missing", async () => {
@@ -101,7 +103,7 @@ test("reports redacted authorization-hop context when p_skey is missing", async 
       return new Response("ptuiCB('0','0','https://ssl.ptlogin2.graph.qq.com/check_sig?uin=private-uin&ptsigx=private-signature','0','登录成功','')", { status: 200 });
     }
     if (path.endsWith("/check_sig")) {
-      return new Response("authorization denied", { status: 200, headers: { "set-cookie": "session_hint=secret-cookie; Path=/" } });
+      return new Response("authorization denied", { status: 200, headers: { "set-cookie": "session_hint=secret-cookie; Path=/, p_skey=; Path=/" } });
     }
     throw new Error(`Unexpected URL in test: ${url}`);
   };
@@ -110,7 +112,7 @@ test("reports redacted authorization-hop context when p_skey is missing", async 
 
   await assert.rejects(service.poll(qr.id), (reason: unknown) => {
     assert.ok(reason instanceof Error);
-    assert.match(reason.message, /host=ssl\.ptlogin2\.graph\.qq\.com, status=200, redirect=none, set-cookie=session_hint/);
+    assert.match(reason.message, /host=ssl\.ptlogin2\.graph\.qq\.com, status=200, redirect=none, set-cookie=session_hint,p_skey, p_skey=empty/);
     assert.doesNotMatch(reason.message, /private-uin|private-signature|secret-cookie/);
     return true;
   });
