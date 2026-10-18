@@ -309,6 +309,18 @@ main { grid-column: 2; grid-row: 1; min-width: 0; min-height: 0; overflow-y: aut
 .login-privacy { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 15px 0 0; color: #aaa0a7; font-size: 10px }
 .login-privacy .app-icon { width: 14px; height: 14px; color: #d199b3 }
 .login-error { margin: 12px 0 0; color: #b34557; font-size: 11px }
+.profile-screen { position: fixed; inset: 0; display: grid; place-items: center; overflow-y: auto; padding: 24px; color: var(--text-color); background: radial-gradient(ellipse at 50% 0%, var(--background-color-secondary), var(--background-color) 56%, var(--surface)) }
+.profile-card { position: relative; width: min(430px, calc(100vw - 32px)); padding: 34px 35px 30px; border: 1px solid var(--border-color); border-radius: 22px; text-align: center; background: var(--surface); box-shadow: 0 24px 70px rgba(126,70,99,.15) }
+.profile-back { position: absolute; top: 17px; left: 17px; padding: 7px 9px; border: 0; border-radius: 8px; color: var(--text-muted); background: transparent; cursor: pointer }
+.profile-back:hover { color: var(--color-primary); background: var(--interaction-hover) }
+.profile-card .brand { justify-content: center; margin: 12px 0 22px; font-size: 18px }
+.profile-card .eyebrow { color: var(--color-primary) }
+.profile-avatar { width: 86px; height: 86px; display: block; margin: 20px auto 14px; border-radius: 50%; object-fit: cover; box-shadow: 0 5px 18px rgba(92,47,68,.15) }
+.profile-avatar--empty { display: grid; place-items: center; color: var(--color-primary); background: var(--interaction-hover) }
+.profile-avatar--empty .app-icon { width: 36px; height: 36px }
+.profile-card h1 { margin: 8px 0; color: var(--text-color); font-size: 24px }
+.profile-account-id { margin: 0 0 20px; color: var(--text-muted); font-size: 13px }
+.profile-logout { width: 100%; justify-content: center; margin-top: 12px }
 .lyrics-panel { position: fixed; inset: 0 0 var(--player) var(--sidebar); z-index: 8; display: grid; grid-template-columns: minmax(220px, 34%) minmax(0, 1fr); align-items: center; gap: clamp(28px, 5vw, 76px); padding: clamp(34px, 6vw, 84px); text-align: center; color: var(--lyrics-text); background: var(--lyrics-surface); backdrop-filter: blur(22px) }
 .lyrics-artwork-wrap { min-width: 0; justify-self: center; width: min(100%, 390px) }
 .lyrics-artwork { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 18px; box-shadow: 0 22px 55px rgba(92,47,68,.2) }
@@ -484,6 +496,7 @@ main { grid-column: 2; grid-row: 1; min-width: 0; min-height: 0; overflow-y: aut
 :root[data-scheme="dark"] .progress::before { background: var(--progress-track) }
 :root[data-scheme="dark"] .sidebar-scroll { scrollbar-color: var(--color-primary) transparent }
 :root[data-scheme="dark"] .login-screen { background: radial-gradient(ellipse at 50% 0%, var(--dark-login-start), var(--dark-login-end) 65%) }
+:root[data-scheme="dark"] .profile-screen { background: radial-gradient(ellipse at 50% 0%, var(--dark-login-start), var(--dark-login-end) 65%) }
 :root[data-scheme="dark"] .login-card { color: var(--text-color); border-color: var(--border-color); background: color-mix(in srgb, var(--surface-raised) 94%, transparent); box-shadow: 0 24px 70px rgba(0, 0, 0, .34) }
 :root[data-scheme="dark"] .login-card h1 { color: var(--text-color) }
 :root[data-scheme="dark"] .login-description, :root[data-scheme="dark"] .login-privacy,

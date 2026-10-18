@@ -3,6 +3,8 @@ async function json(path) {
   const body = await response.json();
   if (!response.ok) {
     const error = new Error(body.error || body.message || `请求失败 (${response.status})`);
+    error.status = response.status;
+    if (typeof body.code === "number") error.code = body.code;
     if (typeof body.reason === "string") error.reason = body.reason;
     if (typeof body.trackId === "string") error.trackId = body.trackId;
     throw error;
@@ -58,6 +60,10 @@ export function loadLyrics(trackId) {
 
 export async function loadSession() {
   return (await json("/api/session")).session;
+}
+
+export async function loadAccountProfile() {
+  return (await json("/api/account/profile")).profile;
 }
 
 export function endSession() {

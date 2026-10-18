@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { createLoginQR, endSession, loadLyrics, loadPlaylists, loadPlaylistTracks, loadSession, pollLoginQR, resolveStream } from "./api.js";
+import { createLoginQR, endSession, loadAccountProfile, loadLyrics, loadPlaylists, loadPlaylistTracks, loadSession, pollLoginQR, resolveStream } from "./api.js";
 import AppIcon from "./components/AppIcon.vue";
 import IconButton from "./components/IconButton.vue";
 import PlayerBar from "./components/PlayerBar.vue";
@@ -12,6 +12,7 @@ import { loadVolumePreferences, saveVolumePreferences, toggleMuteVolume } from "
 import QueuePanel from "./components/QueuePanel.vue";
 import { parseLyrics } from "./lyrics.js";
 import { useQueue } from "./stores/queue.js";
+import { normalizePath, resolvePath } from "./navigation.js";
 
 const queue = useQueue();
 const audio = ref();
@@ -43,6 +44,8 @@ const lyricLines = ref([]);
 const showLyrics = ref(false);
 const lyricsScroll = ref();
 const session = ref(null);
+const routePath = ref(normalizePath(window.location.pathname));
+const accountProfile = ref(null);
 const qr = ref(null);
 const loginStatus = ref("idle");
 const loginProvider = ref("qq");
@@ -59,6 +62,31 @@ let lyricsFollowPaused = false;
 let loginPolling = false;
 let playbackRequest = 0;
 let removeMediaSessionActions = () => {};
+
+function navigate(path, replace = false) {
+  const nextPath = normalizePath(path);
+  if (window.location.pathname !== nextPath) window.history[replace ? "replaceState" : "pushState"]({}, "", nextPath);
+  routePath.value = nextPath;
+}
+
+function handleRouteChange() {
+  const nextPath = resolvePath(window.location.pathname, Boolean(session.value));
+  if (nextPath !== window.location.pathname) window.history.replaceState({}, "", nextPath);
+  routePath.value = nextPath;
+  if (nextPath === "/profile" && session.value) void refreshAccountProfile();
+}
+
+async function refreshAccountProfile() {
+  try { accountProfile.value = await loadAccountProfile(); }
+  catch (reason) {
+    if (reason.status === 401 || reason.code === 1000) {
+      session.value = null;
+      accountProfile.value = null;
+      error.value = "QQ 音乐已拒绝此登录会话，请重新扫码登录";
+      navigate("/login", true);
+    } else error.value = reason.message || "账号资料加载失败";
+  }
+}
 
 const visibleTracks = computed(() => {
   const needle = filter.value.trim().toLowerCase();
@@ -277,8 +305,17 @@ async function loadLibrary() {
     const preferred = playlists.value.find((playlist) => playlist.kind === "liked") || playlists.value[0];
     if (preferred) await selectPlaylist(preferred);
     session.value = await loadSession();
+    return true;
   }
-  catch (reason) { error.value = reason.message || "歌单加载失败"; }
+  catch (reason) {
+    error.value = reason.message || "歌单加载失败";
+    if (reason.status === 401 || reason.code === 1000) {
+      session.value = null;
+      accountProfile.value = null;
+      navigate("/login", true);
+    }
+    return false;
+  }
   finally { loading.value = false; }
 }
 
@@ -327,7 +364,7 @@ async function checkLogin() {
       clearInterval(loginTimer);
       session.value = await loadSession();
       qr.value = null;
-      await loadLibrary();
+      if (session.value && await loadLibrary()) navigate("/", true);
     } else if (["expired", "refused"].includes(result.status)) clearInterval(loginTimer);
   } catch (reason) { clearInterval(loginTimer); loginStatus.value = "error"; error.value = reason.message || "登录状态检查失败"; }
   finally { loginPolling = false; }
@@ -357,6 +394,8 @@ async function logout() {
     qr.value = null;
     loginStatus.value = "idle";
     session.value = null;
+    accountProfile.value = null;
+    navigate("/login", true);
   } catch (reason) {
     error.value = reason.message || "退出登录失败";
   } finally {
@@ -366,6 +405,7 @@ async function logout() {
 
 onMounted(async () => {
   window.addEventListener("resize", updateShortcutVisibility);
+  window.addEventListener("popstate", handleRouteChange);
   window.addEventListener("keydown", handleGlobalKeydown);
   systemColorScheme.addEventListener("change", updateSystemColorScheme);
   removeMediaSessionActions = registerMediaSessionActions(navigator.mediaSession, {
@@ -375,7 +415,18 @@ onMounted(async () => {
     next: () => advance(1),
   });
   if (audio.value) audio.value.volume = volume.value;
-  try { session.value = await loadSession(); if (session.value) await loadLibrary(); else loading.value = false; }
+  try {
+    session.value = await loadSession();
+    const resolved = resolvePath(window.location.pathname, Boolean(session.value));
+    navigate(resolved, true);
+    if (session.value && await loadLibrary()) {
+      if (routePath.value === "/profile") await refreshAccountProfile();
+      else if (routePath.value === "/login") navigate("/", true);
+    } else {
+      loading.value = false;
+      if (!session.value) navigate("/login", true);
+    }
+  }
   catch (reason) { loading.value = false; error.value = reason.message || "登录状态加载失败"; }
 });
 watch([() => queue.currentId, () => filter.value, () => tracks.value], () => nextTick(updateShortcutVisibility));
@@ -394,14 +445,14 @@ onBeforeUnmount(() => {
   clearTimeout(lyricsResumeTimer);
   removeMediaSessionActions();
   window.removeEventListener("resize", updateShortcutVisibility);
+  window.removeEventListener("popstate", handleRouteChange);
   window.removeEventListener("keydown", handleGlobalKeydown);
   systemColorScheme.removeEventListener("change", updateSystemColorScheme);
 });
 </script>
 
 <template>
-  <div class="shell" @click="showAccountMenu = false; showThemeMenu = false">
-    <div v-if="!session" class="login-screen">
+  <div v-if="routePath === '/login' || !session" class="login-screen">
       <div class="login-card">
         <div class="brand"><span><img src="/melofy-icon.svg" alt="" /></span> Melofy</div>
         <p class="eyebrow">YOUR MUSIC, YOUR WAY</p>
@@ -425,7 +476,21 @@ onBeforeUnmount(() => {
         <p class="login-privacy"><AppIcon name="account" />登录凭据仅保存在本机，不会发送给浏览器</p>
         <p v-if="error" class="login-error">{{ error }}</p>
       </div>
+  </div>
+  <section v-else-if="routePath === '/profile'" class="profile-screen">
+    <div class="profile-card">
+      <button class="profile-back" type="button" @click="navigate('/')">← 返回播放器</button>
+      <div class="brand"><span><img src="/melofy-icon.svg" alt="" /></span> Melofy</div>
+      <p class="eyebrow">ACCOUNT PROFILE</p>
+      <img v-if="accountProfile?.avatarUrl || session.avatarUrl" class="profile-avatar" :src="accountProfile?.avatarUrl || session.avatarUrl" alt="账号头像" />
+      <div v-else class="profile-avatar profile-avatar--empty"><AppIcon name="account" /></div>
+      <h1>{{ accountProfile?.displayName || 'QQ 音乐账号' }}</h1>
+      <p class="profile-account-id">账号：{{ accountProfile?.accountId || session.accountId }}</p>
+      <p v-if="error" class="login-error">{{ error }}</p>
+      <button class="account-action profile-logout" :disabled="loggingOut" @click="logout"><AppIcon name="logout" /><span>{{ loggingOut ? '正在退出…' : '退出登录' }}</span></button>
     </div>
+  </section>
+  <div v-else class="shell" @click="showAccountMenu = false; showThemeMenu = false">
     <aside class="sidebar">
       <div class="brand"><span><img src="/melofy-icon.svg" alt="" /></span> Melofy</div>
       <div class="sidebar-scroll">
@@ -435,7 +500,7 @@ onBeforeUnmount(() => {
       </div>
     </aside>
     <main ref="mainView" @scroll="updateShortcutVisibility">
-      <header class="topbar"><label class="search-box"><AppIcon name="search" /><input v-model="filter" placeholder="在当前歌单中搜索"></label><div class="topbar-actions"><div class="theme-menu-wrap"><button class="icon-button" :class="{ active: showThemeMenu }" type="button" aria-label="外观设置" :aria-expanded="showThemeMenu" @click.stop="showThemeMenu = !showThemeMenu; showAccountMenu = false"><AppIcon name="settings" /></button><div v-if="showThemeMenu" class="account-dropdown theme-dropdown" @click.stop><strong class="menu-title">外观设置</strong><label class="account-setting"><span>色彩主题</span><select v-model="theme" aria-label="色彩主题"><option value="pink">柔粉</option><option value="orange">暖橙</option><option value="green">清绿</option><option value="blue">清蓝</option></select></label><div class="appearance-setting" role="group" aria-label="外观模式" :style="{ '--appearance-index': appearanceOptions.findIndex(option => option.value === appearanceMode) }"><span class="appearance-slider" aria-hidden="true"></span><button v-for="option in appearanceOptions" :key="option.value" type="button" :class="{ active: appearanceMode === option.value }" :aria-pressed="appearanceMode === option.value" @click="appearanceMode = option.value">{{ option.label }}</button></div></div></div><div class="account-menu-wrap"><button class="account-trigger icon-button" :class="{ active: showAccountMenu }" type="button" :aria-label="showAccountMenu ? '关闭账号菜单' : '打开账号菜单'" :aria-expanded="showAccountMenu" @click.stop="showAccountMenu = !showAccountMenu; showThemeMenu = false"><img v-if="session?.avatarUrl" :src="session.avatarUrl" alt="" /><AppIcon v-else name="account" /></button><div v-if="showAccountMenu" class="account-dropdown" @click.stop><div class="account-summary"><img v-if="session?.avatarUrl" class="account-avatar" :src="session.avatarUrl" alt="" /><span v-else class="account-avatar">Q</span><span><strong>QQ 音乐账号</strong><small>{{ session?.accountId || '本机已登录' }}</small></span></div><button class="account-action" :disabled="loggingOut" @click="logout"><AppIcon name="logout" /><span>{{ loggingOut ? '正在退出…' : '退出登录' }}</span></button></div></div></div></header>
+      <header class="topbar"><label class="search-box"><AppIcon name="search" /><input v-model="filter" placeholder="在当前歌单中搜索"></label><div class="topbar-actions"><div class="theme-menu-wrap"><button class="icon-button" :class="{ active: showThemeMenu }" type="button" aria-label="外观设置" :aria-expanded="showThemeMenu" @click.stop="showThemeMenu = !showThemeMenu; showAccountMenu = false"><AppIcon name="settings" /></button><div v-if="showThemeMenu" class="account-dropdown theme-dropdown" @click.stop><strong class="menu-title">外观设置</strong><label class="account-setting"><span>色彩主题</span><select v-model="theme" aria-label="色彩主题"><option value="pink">柔粉</option><option value="orange">暖橙</option><option value="green">清绿</option><option value="blue">清蓝</option></select></label><div class="appearance-setting" role="group" aria-label="外观模式" :style="{ '--appearance-index': appearanceOptions.findIndex(option => option.value === appearanceMode) }"><span class="appearance-slider" aria-hidden="true"></span><button v-for="option in appearanceOptions" :key="option.value" type="button" :class="{ active: appearanceMode === option.value }" :aria-pressed="appearanceMode === option.value" @click="appearanceMode = option.value">{{ option.label }}</button></div></div></div><div class="account-menu-wrap"><button class="account-trigger icon-button" :class="{ active: showAccountMenu }" type="button" :aria-label="showAccountMenu ? '关闭账号菜单' : '打开账号菜单'" :aria-expanded="showAccountMenu" @click.stop="showAccountMenu = !showAccountMenu; showThemeMenu = false"><img v-if="session?.avatarUrl" :src="session.avatarUrl" alt="" /><AppIcon v-else name="account" /></button><div v-if="showAccountMenu" class="account-dropdown" @click.stop><div class="account-summary"><img v-if="session?.avatarUrl" class="account-avatar" :src="session.avatarUrl" alt="" /><span v-else class="account-avatar">Q</span><span><strong>QQ 音乐账号</strong><small>{{ session?.accountId || '本机已登录' }}</small></span></div><button class="account-action" @click="showAccountMenu = false; navigate('/profile')"><AppIcon name="account" /><span>账号资料</span></button><button class="account-action" :disabled="loggingOut" @click="logout"><AppIcon name="logout" /><span>{{ loggingOut ? '正在退出…' : '退出登录' }}</span></button></div></div></div></header>
       <section class="hero"><div class="cover" :style="selectedPlaylist?.coverUrl ? { backgroundImage: `url(${selectedPlaylist.coverUrl})` } : {}">{{ selectedPlaylist?.coverUrl ? '' : selectedPlaylist?.kind === 'liked' ? '♥' : '♫' }}</div><div class="hero-copy"><p class="eyebrow">{{ selectedPlaylist?.kind === 'collected' ? 'COLLECTED PLAYLIST' : selectedPlaylist?.kind === 'liked' ? 'YOUR FAVORITES' : 'YOUR PLAYLIST' }}</p><h1>{{ selectedPlaylist?.title || 'Melofy' }}</h1><p>{{ tracks.length }} 首歌曲 · 已从 QQ 音乐完整分页加载</p></div></section>
       <p v-if="error" class="error">{{ error }}</p>
       <section class="list">
