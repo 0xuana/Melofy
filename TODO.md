@@ -4,3 +4,4 @@
 - [ ] investigation: capture a credential-renewal request from a controlled Windows QQMusic runtime and document its request and response fields.
 - [ ] api: implement QQMusic credential renewal only after the Windows or Linux artifact confirms a usable renewal contract.
 - [ ] api: integrate QR login from refer/qq-music-api when that project provides a QQ authorization and session contract.
+- [x] api: follow QQ authorization redirects and preserve response cookies until `p_skey` is available.

@@ -117,8 +117,26 @@ export class QQQrLoginService {
     const checkUrl = new URL("https://ssl.ptlogin2.graph.qq.com/check_sig");
     const checkParams = { uin, pttype: "1", service: "ptqrlogin", nodirect: "0", ptsigx: sigx, s_url: "https://graph.qq.com/oauth2.0/login_jump", ptlang: "2052", ptredirect: "100", aid: "716027609", daid: "383", j_later: "0", low_login_hour: "0", regmaster: "0", pt_login_type: "3", pt_aid: "0", pt_aaid: "16", pt_light: "0", pt_3rd_aid: "100497308" };
     for (const [key, value] of Object.entries(checkParams)) checkUrl.searchParams.set(key, value);
-    const checked = await this.#fetch(checkUrl, { headers: { referer: "https://xui.ptlogin2.qq.com/" }, redirect: "manual" });
-    const cookies = cookieMap(setCookies(checked.headers));
+    const cookies = new Map<string, string>();
+    let authorizationUrl = checkUrl.toString();
+    let referer = "https://xui.ptlogin2.qq.com/";
+    for (let hop = 0; hop < 10; hop++) {
+      const response = await this.#fetch(authorizationUrl, {
+        headers: { referer, ...(cookies.size ? { cookie: cookieHeader(cookies) } : {}) },
+        redirect: "manual",
+      });
+      for (const [name, value] of cookieMap(setCookies(response.headers))) cookies.set(name, value);
+      if (cookies.has("p_skey")) break;
+
+      const location = response.headers.get("location");
+      if (!location || response.status < 300 || response.status >= 400) break;
+      const nextUrl = new URL(location, authorizationUrl);
+      if (nextUrl.protocol !== "https:" || !nextUrl.hostname.endsWith(".qq.com")) {
+        throw new Error("QQ authorization redirected outside QQ domains");
+      }
+      referer = authorizationUrl;
+      authorizationUrl = nextUrl.toString();
+    }
     const pSkey = cookies.get("p_skey");
     if (!pSkey) throw new Error("QQ authorization did not provide p_skey");
 
