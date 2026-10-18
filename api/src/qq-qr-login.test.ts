@@ -74,5 +74,6 @@ test("follows QQ authorization redirects and carries cookies until p_skey is iss
 
   assert.equal(result.status, "complete");
   assert.equal(result.credentials?.accountId, "12345");
+  assert.equal(result.credentials?.pSkey, "redirect-cookie");
   assert.ok(requests.some((request) => request.url.includes("oauth2.0/authorize") && request.cookie.includes("p_skey=redirect-cookie")));
 });

@@ -15,6 +15,7 @@ interface StoredSessionV1 {
   readonly openId?: string;
   readonly unionId?: string;
   readonly strMusicId?: string;
+  readonly pSkey?: string;
 }
 
 export interface PersistentQQMusicCredentials extends QQMusicCredentials {
@@ -54,6 +55,7 @@ export class SessionStore {
         accountId: value.accountId,
         accountType: value.accountType,
         musicKey: value.musicKey,
+        ...(validString(value.pSkey) ? { pSkey: value.pSkey } : {}),
         expiresAt,
         ...(validString(value.refreshKey) ? { refreshKey: value.refreshKey } : {}),
         ...(validString(value.refreshToken) ? { refreshToken: value.refreshToken } : {}),
@@ -77,6 +79,7 @@ export class SessionStore {
       accountId: credentials.accountId,
       accountType: credentials.accountType,
       musicKey: credentials.musicKey,
+      ...(credentials.pSkey ? { pSkey: credentials.pSkey } : {}),
       expiresAt: credentials.expiresAt.toISOString(),
       ...(credentials.refreshKey ? { refreshKey: credentials.refreshKey } : {}),
       ...(credentials.refreshToken ? { refreshToken: credentials.refreshToken } : {}),

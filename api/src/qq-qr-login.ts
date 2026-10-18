@@ -161,6 +161,7 @@ export class QQQrLoginService {
     const lifetime = typeof data.keyExpiresIn === "number" ? data.keyExpiresIn : 90 * 24 * 60 * 60;
     return {
       accountId, accountType: "qq", musicKey, expiresAt: new Date((createdAt + lifetime) * 1000),
+      pSkey,
       ...(typeof data.refresh_key === "string" && data.refresh_key ? { refreshKey: data.refresh_key } : {}),
       ...(typeof data.refresh_token === "string" && data.refresh_token ? { refreshToken: data.refresh_token } : {}),
       ...(typeof data.access_token === "string" && data.access_token ? { accessToken: data.access_token } : {}),

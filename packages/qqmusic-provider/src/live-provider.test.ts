@@ -100,3 +100,34 @@ test("normalizes created and collected playlists and pages playlist tracks", asy
   assert.equal(page.items[0]?.id, "71");
   assert.equal(page.nextCursor, null);
 });
+
+test("sends the persisted QQ authorization ticket when validating a profile", async () => {
+  let profileCookie = "";
+  let profileGToken = "";
+  const fakeFetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(String(input));
+    if (url.hostname === "c.y.qq.com") {
+      profileCookie = new Headers(init?.headers).get("cookie") ?? "";
+      profileGToken = url.searchParams.get("g_tk") ?? "";
+      if (!profileCookie.includes("p_skey=profile-ticket")) return Response.json({ code: 1000 });
+      return Response.json({ code: 0, data: { creator: { encrypt_uin: "encrypted", avatarUrl: "https://img.example/avatar.png" }, mymusic: [{ type: 1, id: 42, title: "Liked" }] } });
+    }
+    const body = typeof init?.body === "string" ? JSON.parse(init.body) as Record<string, unknown> : {};
+    if (body.created) return Response.json({ code: 0, created: { code: 0, data: { v_playlist: [] } } });
+    if (body.collected) return Response.json({ code: 0, collected: { code: 0, data: { total: 0, hasmore: 0, v_list: [] } } });
+    return Response.json({ code: 0 });
+  }) as typeof globalThis.fetch;
+  const provider = new LiveQQMusicProvider({
+    accountId: "123",
+    accountType: "qq",
+    musicKey: "music-key",
+    pSkey: "profile-ticket",
+    expiresAt: new Date("2030-01-01"),
+  } as ConstructorParameters<typeof LiveQQMusicProvider>[0], fakeFetch);
+
+  const playlists = await provider.getPlaylists();
+
+  assert.equal(profileCookie.includes("p_skey=profile-ticket"), true);
+  assert.equal(profileGToken, String([..."profile-ticket"].reduce((hash, character) => ((hash << 5) + hash + character.charCodeAt(0)) & 0x7fffffff, 5381)));
+  assert.equal(playlists[0]?.kind, "liked");
+});

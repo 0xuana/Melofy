@@ -14,6 +14,7 @@ export interface QQMusicCredentials {
   readonly accountId: string;
   readonly accountType: string;
   readonly musicKey: string;
+  readonly pSkey?: string;
   readonly expiresAt: Date;
 }
 
@@ -93,6 +94,17 @@ export class LiveQQMusicProvider implements QQMusicProvider {
     if (typeof candidate !== "string" || !candidate) return null;
     const url = candidate.startsWith("//") ? `https:${candidate}` : candidate;
     return /^https:\/\//i.test(url) ? url : null;
+  }
+
+  async getAccountProfile() {
+    const profile = await this.#getProfile();
+    const creator = asRecord(profile.creator);
+    const displayName = creator.nick ?? creator.nickname ?? creator.name;
+    return {
+      accountId: this.#credentials.accountId,
+      displayName: typeof displayName === "string" && displayName ? displayName : null,
+      avatarUrl: this.#avatarUrl(),
+    };
   }
 
   async getLikedSongs(cursor: string | null, pageSize: number): Promise<Page<Track>> {
@@ -267,12 +279,14 @@ export class LiveQQMusicProvider implements QQMusicProvider {
       loginUin: this.#credentials.accountId,
       needNewCode: "0",
       format: "json",
+      ...(this.#credentials.pSkey ? { g_tk: String(hash33(this.#credentials.pSkey, 5381)) } : {}),
     })) url.searchParams.set(key, value);
 
     const response = await this.#fetch(url, { headers: this.#headers() });
     if (!response.ok) throw new Error(`QQMusic profile request failed with HTTP ${response.status}`);
     const payload = asRecord(await response.json());
-    if (payload.code !== 0) throw new Error(`QQMusic profile rejected the session with code ${String(payload.code)}`);
+    if (payload.code === 1000) throw new QQMusicSessionRejectedError();
+    if (payload.code !== 0) throw new Error(`QQMusic profile request failed with code ${String(payload.code)}`);
     this.#profile = asRecord(payload.data);
     return this.#profile;
   }
@@ -310,10 +324,10 @@ export class LiveQQMusicProvider implements QQMusicProvider {
   }
 
   #headers(): Record<string, string> {
-    const { accountId, musicKey } = this.#credentials;
+    const { accountId, musicKey, pSkey } = this.#credentials;
     return {
       accept: "application/json",
-      cookie: `uin=o${accountId}; qqmusic_key=${musicKey}; qm_keyst=${musicKey}`,
+      cookie: `uin=o${accountId}; qqmusic_key=${musicKey}; qm_keyst=${musicKey}${pSkey ? `; p_skey=${pSkey}` : ""}`,
       origin: "https://y.qq.com",
       referer: "https://y.qq.com/",
       "user-agent": "Mozilla/5.0 QQMusic-Web-Player/0.1",
@@ -377,4 +391,19 @@ export class LiveQQMusicProvider implements QQMusicProvider {
     const size = file[format.size];
     return typeof size === "number" && size > 0 ? format : null;
   }
+}
+
+export class QQMusicSessionRejectedError extends Error {
+  readonly code = 1000;
+
+  constructor() {
+    super("QQMusic profile rejected the session with code 1000; please sign in again.");
+    this.name = "QQMusicSessionRejectedError";
+  }
+}
+
+function hash33(value: string, initial = 0): number {
+  let hash = initial;
+  for (const character of value) hash = ((hash << 5) + hash + character.charCodeAt(0)) & 0x7fffffff;
+  return hash;
 }

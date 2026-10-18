@@ -18,6 +18,7 @@ test("persists credentials atomically with private permissions", () => {
       expiresAt: new Date("2030-01-01T00:00:00.000Z"),
       refreshKey: "refresh-key",
       refreshToken: "refresh-token",
+      pSkey: "profile-ticket",
     });
     assert.deepEqual(store.load(), {
       accountId: "12345",
@@ -26,6 +27,7 @@ test("persists credentials atomically with private permissions", () => {
       expiresAt: new Date("2030-01-01T00:00:00.000Z"),
       refreshKey: "refresh-key",
       refreshToken: "refresh-token",
+      pSkey: "profile-ticket",
     });
     assert.equal(statSync(join(root, "private")).mode & 0o777, 0o700);
     assert.equal(statSync(path).mode & 0o777, 0o600);

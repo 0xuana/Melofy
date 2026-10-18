@@ -1,4 +1,5 @@
 import { inspectInstalledProfile } from "@qqmusic-web/installed-profile-adapter";
+import { QQMusicSessionRejectedError } from "@qqmusic-web/provider";
 import type { AudioQuality, QQMusicProvider } from "@qqmusic-web/provider";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
@@ -67,6 +68,9 @@ export function createRequestHandler(
         sendJson(response, profilePath ? 200 : 404, profilePath
           ? { profile: inspectInstalledProfile(profilePath) }
           : { error: "Installed profile inspection is not configured" });
+      } else if (request.method === "GET" && url.pathname === "/api/account/profile") {
+        if (!provider) { sendJson(response, 401, { error: "QQMusic login is required" }); return; }
+        sendJson(response, 200, { profile: await provider.getAccountProfile() });
       } else if (request.method === "GET" && url.pathname === "/api/playlists") {
         if (!provider) { sendJson(response, 401, { error: "QQMusic login is required" }); return; }
         sendJson(response, 200, { playlists: await provider.getPlaylists() });
@@ -101,7 +105,11 @@ export function createRequestHandler(
         sendJson(response, "url" in result ? 200 : 403, result);
       }
     } catch (error) {
-      sendJson(response, 500, { error: error instanceof Error ? error.message : "Unknown API error" });
+      if (error instanceof QQMusicSessionRejectedError) {
+        sendJson(response, 401, { error: error.message, code: error.code });
+      } else {
+        sendJson(response, 500, { error: error instanceof Error ? error.message : "Unknown API error" });
+      }
     }
   };
 }

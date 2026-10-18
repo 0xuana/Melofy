@@ -7,6 +7,12 @@ export interface AccountSession {
   readonly avatarUrl: string | null;
 }
 
+export interface QQMusicAccountProfile {
+  readonly accountId: string;
+  readonly displayName: string | null;
+  readonly avatarUrl: string | null;
+}
+
 export interface Artist {
   readonly id: string;
   readonly name: string;
@@ -69,6 +75,7 @@ export interface TrackLyrics {
 
 export interface QQMusicProvider {
   getSession(): Promise<AccountSession | null>;
+  getAccountProfile(): Promise<QQMusicAccountProfile>;
   getLikedSongs(cursor: string | null, pageSize: number): Promise<Page<Track>>;
   getPlaylists(): Promise<readonly PlaylistSummary[]>;
   getPlaylistSongs(playlistId: string, dirId: string | null, cursor: string | null, pageSize: number): Promise<Page<Track>>;
