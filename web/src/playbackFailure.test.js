@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { loadTrackStream, unplayableLabel } from "./playbackFailure.js";
+import { isCurrentAudioEnded, loadTrackStream, unplayableLabel } from "./playbackFailure.js";
 
 test("a rights-rejected stream is marked and automatically skipped", async () => {
   const calls = [];
@@ -44,4 +44,10 @@ test("playability labels distinguish rights restrictions from other failures", (
   assert.equal(unplayableLabel("subscription"), "需会员");
   assert.equal(unplayableLabel("region"), "地区限制");
   assert.equal(unplayableLabel("unavailable"), "暂不可播");
+});
+
+test("stale ended events cannot advance after the active audio source has changed", () => {
+  assert.equal(isCurrentAudioEnded({ ended: false }), false);
+  assert.equal(isCurrentAudioEnded({ ended: true }), true);
+  assert.equal(isCurrentAudioEnded(null), false);
 });

@@ -9,7 +9,7 @@ const stylesheet = postcss.parse(css);
 function findRule(selector) {
   let result;
   stylesheet.walkRules((rule) => {
-    if (rule.selector === selector && rule.nodes.some((node) => node.type === "decl")) result = rule;
+    if (rule.selector.replace(/\s+/g, " ").trim() === selector.replace(/\s+/g, " ").trim() && rule.nodes.some((node) => node.type === "decl")) result = rule;
   });
   return result;
 }
@@ -59,6 +59,14 @@ test("dark track hover does not force a light surface", () => {
   assert.equal(declaration(rule, "background"), "var(--hover-color)");
 });
 
+test("dark current-track hover overrides the generic dark track hover", () => {
+  const rule = findRule(':root[data-scheme="dark"] .track.is-current:hover, :root[data-scheme="dark"] .track.is-current:focus-within, :root[data-scheme="dark"] .queue-row.current:hover, :root[data-scheme="dark"] .queue-row.current:focus-within');
+  assert.ok(rule, "dark current-track and queue hover override is required");
+  assert.equal(declaration(rule, "background"), "var(--current-hover-surface)");
+  assert.equal(declaration(rule, "border-color"), "var(--interaction-hover-border)");
+  assert.match(declaration(rule, "box-shadow"), /color-mix\(in srgb, var\(--primary-color\)/);
+});
+
 test("the unplayed progress track is sourced from each light theme palette", () => {
   const palettes = [
     [":root", "#f0dfe7"],
@@ -77,6 +85,30 @@ test("the now-playing cover has a visible accent hover state in dark mode", () =
   assert.ok(rule, "dark now-playing cover hover override is required");
   assert.equal(declaration(rule, "border-color"), "var(--color-primary)");
   assert.match(declaration(rule, "box-shadow"), /color-mix\(in srgb, var\(--primary-color\)/);
+});
+
+test("the dark hero's circular glow uses the selected theme accent instead of white", () => {
+  const rule = findRule(':root[data-scheme="dark"] .hero::after');
+  assert.ok(rule, "dark decorative hero glow override is required");
+  assert.match(declaration(rule, "background"), /var\(--primary-color\)/);
+  assert.doesNotMatch(declaration(rule, "background"), /rgba\(255,255,255/);
+});
+
+test("playlist cover shadow follows the theme and remains visible in dark mode", () => {
+  assert.match(declaration(findRuleWithDeclaration(".cover", "box-shadow"), "box-shadow"), /var\(--primary-color\)/);
+  const darkRule = findRule(':root[data-scheme="dark"] .cover');
+  assert.ok(darkRule, "dark playlist cover shadow override is required");
+  assert.match(declaration(darkRule, "box-shadow"), /var\(--primary-color\)/);
+  assert.match(declaration(darkRule, "box-shadow"), /rgba\(0,\s*0,\s*0/);
+});
+
+test("playlist add-menu errors stay pinned and menu content cannot scroll horizontally", () => {
+  const menu = findRule(".add-menu");
+  assert.equal(declaration(menu, "overflow-x"), "hidden");
+  const error = findRule(".add-menu-error");
+  assert.ok(error, "add error needs a dedicated visible treatment");
+  assert.equal(declaration(error, "position"), "sticky");
+  assert.equal(declaration(error, "top"), "0");
 });
 
 test("unplayable track indicators derive from the selected theme in light and dark modes", () => {

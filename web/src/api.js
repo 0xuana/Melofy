@@ -1,5 +1,5 @@
 async function json(path) {
-  const response = await fetch(path);
+  const response = await fetch(path, { cache: "no-store" });
   const body = await response.json();
   if (!response.ok) {
     const error = new Error(body.error || body.message || `请求失败 (${response.status})`);
@@ -30,6 +30,34 @@ export async function loadLikedTracks() {
 
 export async function loadPlaylists() {
   return (await json("/api/playlists")).playlists;
+}
+
+export async function searchTracks(query, page = 1, limit = 20) {
+  const params = new URLSearchParams({ query, page: String(page), limit: String(limit) });
+  return json(`/api/search?${params}`);
+}
+
+export async function getTrackPlaylistMembership(trackId) {
+  return (await json(`/api/tracks/${encodeURIComponent(trackId)}/playlists`)).playlistIds;
+}
+
+export async function createPlaylist(name) {
+  const response = await fetch("/api/playlists", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name }),
+  });
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error || "创建歌单失败");
+  return body.playlist;
+}
+
+export async function addTrackToPlaylist(trackId, playlistId) {
+  const response = await fetch(`/api/playlists/${encodeURIComponent(playlistId)}/tracks`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ trackId }),
+  });
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error || "添加歌曲失败");
+  if (body.added !== true || body.verified !== true) throw new Error("QQ 音乐尚未确认歌曲已加入歌单");
+  return body;
 }
 
 export async function loadPlaylistTracks(playlist) {

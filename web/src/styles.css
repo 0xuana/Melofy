@@ -158,6 +158,10 @@ main { grid-column: 2; grid-row: 1; min-width: 0; min-height: 0; overflow-y: aut
 .search-box .app-icon { width: 17px; height: 17px }
 .search-box input { width: 100%; min-width: 0; border: 0; outline: 0; color: #433942; background: transparent }
 .search-box input::placeholder { color: #b6abb3 }
+.clear-filter { width: 25px; height: 25px; flex: 0 0 auto; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; color: var(--text-muted); background: transparent; cursor: pointer }
+.clear-filter:hover { color: var(--color-primary); background: var(--color-primary-light) }
+.clear-filter:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px }
+.clear-filter .app-icon { width: 14px; height: 14px }
 .topbar-actions { display: flex; align-items: center; gap: 9px; margin-left: auto }
 .theme-menu-wrap, .account-menu-wrap { position: relative }
 .account-menu-wrap > .account-trigger { width: 40px; height: 40px; overflow: hidden; color: #80747e; background: var(--surface); border: 1px solid var(--border-color); box-shadow: 0 3px 10px rgba(106, 61, 82, .05) }
@@ -186,15 +190,74 @@ main { grid-column: 2; grid-row: 1; min-width: 0; min-height: 0; overflow-y: aut
 .account-action:disabled { opacity: .55; cursor: wait }
 .hero { position: relative; min-height: 225px; display: flex; align-items: end; gap: 27px; margin: 25px 31px 29px; padding: 25px 28px; overflow: hidden; border: 1px solid rgba(255,255,255,.76); border-radius: 20px; background: linear-gradient(120deg, #ffe0ec 0%, #fce9f1 45%, #f4eafa 100%); box-shadow: 0 10px 30px rgba(146, 91, 119, .075) }
 .hero::after { content: ""; position: absolute; top: -100px; right: -40px; width: 360px; height: 360px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.56), rgba(255,255,255,0) 68%); pointer-events: none }
-.cover { position: relative; z-index: 1; width: 164px; height: 164px; flex: 0 0 164px; display: grid; place-items: center; border: 4px solid rgba(255,255,255,.72); border-radius: 17px; color: #fff; background: linear-gradient(145deg, var(--primary-gradient-start), var(--primary-gradient-end)) center/cover; box-shadow: 0 15px 29px rgba(150, 65, 106, .2); font-size: 56px }
+.cover { position: relative; z-index: 1; width: 164px; height: 164px; flex: 0 0 164px; display: grid; place-items: center; border: 4px solid rgba(255,255,255,.72); border-radius: 17px; color: #fff; background: linear-gradient(145deg, var(--primary-gradient-start), var(--primary-gradient-end)) center/cover; box-shadow: 0 15px 29px color-mix(in srgb, var(--primary-color) 24%, transparent); font-size: 56px }
 .hero-copy { position: relative; z-index: 1; min-width: 0; padding-bottom: 2px }
+.playlist-refresh-status { position: absolute; z-index: 2; top: 15px; right: 17px; display: inline-flex; align-items: center; gap: 7px; padding: 6px 9px; border: 1px solid var(--border-color); border-radius: 999px; color: var(--text-muted); background: color-mix(in srgb, var(--surface) 82%, transparent); font-size: 11px; line-height: 1 }
+.playlist-refresh-spinner { width: 13px; height: 13px; border: 2px solid var(--color-primary-light); border-top-color: var(--primary-color); border-radius: 50%; animation: spin .8s linear infinite }
 .eyebrow { margin: 0 0 8px; color: #b27091; font-size: 10px; font-weight: 750; letter-spacing: 1.6px }
 .hero h1 { max-width: 100%; margin: 0; overflow: hidden; color: #3e3039; font-size: clamp(35px, 4.2vw, 55px); font-weight: 760; line-height: 1.1; letter-spacing: -1.8px; text-overflow: ellipsis; white-space: nowrap }
 .hero p { margin: 12px 0 0; color: #8c7783; font-size: 12px }
 .error { margin: 0 32px 18px; padding: 12px 15px; border: 1px solid #f3c8cc; border-radius: 10px; color: #a53d4c; background: #fff0f0 }
 .list { padding: 0 31px 90px }
+.track-virtual-spacer { grid-column: 1 / -1; pointer-events: none }
+.virtual-list-count { margin: 12px 0; color: var(--text-muted); font-size: 11px; text-align: center }
 .list-head, .track { display: grid; grid-template-columns: 48px minmax(180px, 1.35fr) minmax(125px, 1fr) 64px 128px; align-items: center; column-gap: 10px }
 .list-head { position: sticky; top: 71px; z-index: 2; padding: 10px 12px; border-bottom: 1px solid #eadde3; color: #a398a0; background: rgba(255, 246, 250, .94); backdrop-filter: blur(12px); font-size: 11px }
+.list-head span:nth-child(4), .list-head span:nth-child(5) { text-align: right }
+.discover-page { max-width: 1140px; min-height: calc(100% - 72px); margin: 0 auto; padding: 43px clamp(22px, 4vw, 52px) 100px }
+.discover-heading h1 { margin: 0; color: var(--text-color); font-size: clamp(30px, 4vw, 44px); letter-spacing: -1px }
+.discover-heading > p:last-child { margin: 10px 0 25px; color: var(--text-muted); font-size: 13px }
+.discover-search { width: min(680px, 100%); height: 52px; display: flex; align-items: center; gap: 12px; margin-bottom: 26px; padding: 0 8px 0 17px; border: 1px solid var(--border-color); border-radius: 15px; color: var(--text-muted); background: var(--surface); box-shadow: var(--shadow-soft) }
+.discover-search > .app-icon { width: 19px; height: 19px }
+.discover-search input { min-width: 0; flex: 1; border: 0; outline: 0; color: var(--text-color); background: transparent }
+.discover-search input::placeholder { color: var(--text-muted) }
+.discover-search > button[type="submit"] { min-width: 76px; height: 36px; border: 0; border-radius: 10px; color: #fff; background: linear-gradient(120deg, var(--primary-gradient-start), var(--primary-gradient-end)); font-weight: 650; cursor: pointer }
+.discover-search > button[type="submit"]:disabled { opacity: .5; cursor: default }
+.discover-results { width: 100%; position: relative }
+.discover-list-head, .discover-track { display: grid; grid-template-columns: minmax(200px, 1.35fr) minmax(140px, 1fr) 64px 128px; align-items: center; column-gap: 12px }
+.discover-list-head { padding: 10px 12px; border-bottom: 1px solid var(--border-color); color: var(--text-muted); font-size: 11px }
+.discover-list-head span:nth-child(3), .discover-list-head span:nth-child(4) { text-align: right }
+.discover-track { min-height: 68px; padding: 8px 12px; border: 1px solid transparent; border-radius: 11px; color: var(--text-muted); transition: background .15s ease, border-color .15s ease }
+.discover-track:hover { border-color: var(--border-color); background: var(--surface) }
+.discover-song { min-width: 0; display: flex; align-items: center; gap: 12px }
+.discover-heart { width: 22px; flex: 0 0 22px; color: var(--text-muted); opacity: .54 }
+.discover-heart .app-icon { width: 17px; height: 17px }
+.discover-heart.liked { color: var(--color-primary); opacity: 1 }
+.discover-heart.liked .app-icon { fill: currentColor }
+.discover-song-copy { min-width: 0 }
+.discover-song-copy strong, .discover-song-copy small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.discover-song-copy strong { color: var(--text-color); font-size: 13px; font-weight: 620 }
+.discover-song-copy small { margin-top: 5px; color: var(--text-muted); font-size: 11px }
+.discover-album { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px }
+.discover-duration { font-size: 11px; font-variant-numeric: tabular-nums; text-align: right }
+.discover-actions { display: flex; justify-content: flex-end; gap: 4px; opacity: .72 }
+.discover-track:hover .discover-actions, .discover-actions:focus-within { opacity: 1 }
+.track-add-control { position: relative }
+.add-menu { position: fixed; z-index: 1000; overflow-x: hidden; overflow-y: auto; padding: 8px; border: 1px solid var(--border-color); border-radius: 13px; color: var(--text-color); background: var(--surface); box-shadow: 0 14px 40px rgba(35, 25, 32, .19); animation: menu-in .12s ease-out }
+.track.has-open-add-menu, .discover-track.has-open-add-menu { position: relative; z-index: 40 }
+.add-menu-title, .add-menu-subtitle { margin: 5px 8px 7px; color: var(--text-muted); font-size: 10px; font-weight: 700; letter-spacing: .4px }
+.add-menu-subtitle { margin-top: 8px }
+.add-menu-item { width: 100%; min-width: 0; min-height: 36px; display: flex; align-items: center; gap: 9px; padding: 6px 8px; border: 0; border-radius: 8px; color: var(--text-color); text-align: left; background: transparent; cursor: pointer }
+.add-menu-item:hover:not(:disabled) { color: var(--color-primary); background: var(--interaction-hover) }
+.add-menu-item .app-icon { width: 16px; height: 16px; flex: 0 0 16px; color: var(--text-muted) }
+.add-menu-item span { min-width: 0; flex: 1; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap }
+.add-menu-item small { max-width: 70px; flex: 0 0 auto; overflow: hidden; color: var(--text-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap }
+.add-menu-item.unavailable, .add-menu-item:disabled { color: var(--text-muted); opacity: .48; cursor: default }
+.add-menu-divider { height: 1px; margin: 7px 5px; background: var(--border-color) }
+.create-playlist-form { display: flex; gap: 5px; padding: 5px 4px }
+.create-playlist-form input { min-width: 0; flex: 1; padding: 7px; border: 1px solid var(--border-color); border-radius: 7px; color: var(--text-color); background: var(--surface) }
+.create-playlist-form button { padding: 0 10px; border: 0; border-radius: 7px; color: #fff; background: var(--primary-color); cursor: pointer }
+.create-playlist-form button:disabled { opacity: .5; cursor: default }
+.membership-note, .search-total { padding: 4px 8px; color: var(--text-muted); font-size: 10px }
+.add-menu-success { margin: 7px 6px 3px; padding: 7px 8px; border-radius: 7px; color: var(--color-primary); background: var(--color-primary-light); font-size: 11px }
+.add-menu-error { position: sticky; top: 0; z-index: 2; margin: -8px -8px 7px; padding: 8px; border: 1px solid color-mix(in srgb, #a53d4c 34%, var(--border-color)); border-radius: 12px 12px 8px 8px; color: #a53d4c; background: color-mix(in srgb, #fff0f0 88%, var(--surface)); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere }
+.load-more { display: block; margin: 18px auto 0; padding: 9px 22px; border: 1px solid var(--border-color); border-radius: 999px; color: var(--color-primary); background: var(--surface); cursor: pointer }
+.load-more:disabled { opacity: .5; cursor: wait }
+.search-total { text-align: center }
+.discover-empty { display: grid; justify-items: center; gap: 12px; padding: 80px 16px; color: var(--text-muted); font-size: 12px }
+.discover-empty .app-icon { width: 35px; height: 35px; opacity: .5 }
+.discover-error { margin: 0 0 15px; }
+.shell:has(.discover-page) .topbar .search-box { display: none }
 .track { min-height: 64px; padding: 7px 12px; border: 1px solid transparent; border-radius: 10px; color: #716770; transition: background .14s ease, border-color .14s ease, box-shadow .14s ease }
 .track:hover { background: rgba(255,255,255,.75); box-shadow: 0 4px 16px rgba(124, 74, 99, .045) }
 .track.is-current { border-color: var(--current-border); background: var(--current-surface); box-shadow: 0 4px 16px rgba(124, 74, 99, .045) }
@@ -469,12 +532,15 @@ main { grid-column: 2; grid-row: 1; min-width: 0; min-height: 0; overflow-y: aut
 :root[data-scheme="dark"] .account-trigger { color: var(--text-muted); border-color: var(--border-color); background: var(--surface-raised) }
 :root[data-scheme="dark"] .topbar-actions .account-trigger:hover { color: var(--color-primary); border-color: var(--interaction-hover-border); background: var(--interaction-hover) }
 :root[data-scheme="dark"] .account-summary { border-color: var(--border-color) }
+:root[data-scheme="dark"] .add-menu-error { border-color: color-mix(in srgb, #ff8595 48%, var(--border-color)); color: #ffc0c9; background: color-mix(in srgb, #6b2636 36%, var(--surface-raised)) }
 :root[data-scheme="dark"] .account-setting select { color-scheme: dark }
 :root[data-scheme="dark"] .account-setting, :root[data-scheme="dark"] .account-follow-setting,
 :root[data-scheme="dark"] .account-action, :root[data-scheme="dark"] .nav,
 :root[data-scheme="dark"] .track, :root[data-scheme="dark"] .album-cell,
 :root[data-scheme="dark"] .queue-song small { color: #c4b8c0 }
 :root[data-scheme="dark"] .hero { border-color: var(--dark-hero-border); background: linear-gradient(120deg, var(--dark-hero-start), var(--dark-hero-middle) 52%, var(--dark-hero-end)) }
+:root[data-scheme="dark"] .hero::after { background: radial-gradient(circle, color-mix(in srgb, var(--primary-color) 22%, transparent), transparent 68%) }
+:root[data-scheme="dark"] .cover { box-shadow: 0 16px 34px color-mix(in srgb, var(--primary-color) 48%, transparent), 0 5px 14px rgba(0, 0, 0, .4) }
 :root[data-scheme="dark"] .track:hover { background: var(--hover-color); box-shadow: 0 4px 16px rgba(0, 0, 0, .2) }
 :root[data-scheme="dark"] .list-shortcuts .icon-button { color: var(--text-muted); border-color: var(--border-color); background: var(--surface-raised) }
 :root[data-scheme="dark"] .list-shortcuts .icon-button:hover { color: var(--color-primary); border-color: var(--interaction-hover-border); background: var(--interaction-hover) }
@@ -491,6 +557,12 @@ main { grid-column: 2; grid-row: 1; min-width: 0; min-height: 0; overflow-y: aut
 :root[data-scheme="dark"] .queue-panel header small, :root[data-scheme="dark"] .queue-empty { color: var(--text-muted) }
 :root[data-scheme="dark"] .track.is-current, :root[data-scheme="dark"] .queue-row.current {
   border-color: var(--current-border); background: var(--current-surface)
+}
+:root[data-scheme="dark"] .track.is-current:hover, :root[data-scheme="dark"] .track.is-current:focus-within,
+:root[data-scheme="dark"] .queue-row.current:hover, :root[data-scheme="dark"] .queue-row.current:focus-within {
+  border-color: var(--interaction-hover-border);
+  background: var(--current-hover-surface);
+  box-shadow: 0 0 0 1px var(--interaction-hover-border), 0 5px 18px color-mix(in srgb, var(--primary-color) 18%, transparent)
 }
 :root[data-scheme="dark"] .progress::before, :root[data-scheme="dark"] .player-bar { border-color: var(--border-color) }
 :root[data-scheme="dark"] .progress::before { background: var(--progress-track) }
@@ -535,6 +607,20 @@ main { grid-column: 2; grid-row: 1; min-width: 0; min-height: 0; overflow-y: aut
   .hero p { margin-top: 7px; font-size: 10px }
   .hero .eyebrow { font-size: 9px }
   .list { padding: 0 10px 78px }
+  .discover-page { min-height: calc(100% - 60px); padding: 28px 14px 90px }
+  .discover-heading h1 { font-size: 30px }
+  .discover-heading > p:last-child { font-size: 11px }
+  .discover-search { height: 46px; gap: 8px; padding-left: 12px }
+  .discover-search > button[type="submit"] { min-width: 56px; height: 33px }
+  .discover-list-head, .discover-track { grid-template-columns: minmax(0, 1fr) 44px 68px; column-gap: 6px }
+  .discover-list-head span:nth-child(2), .discover-album { display: none }
+  .discover-track { min-height: 59px; padding-inline: 5px }
+  .discover-song { gap: 7px }
+  .discover-heart { width: 18px; flex-basis: 18px }
+  .discover-song-copy strong { font-size: 11px }
+  .discover-song-copy small { font-size: 9px }
+  .discover-actions { gap: 0 }
+  .discover-actions .icon-button { width: 31px; height: 33px }
   .list-head, .track { grid-template-columns: 28px minmax(0, 1fr) 42px 102px; column-gap: 7px }
   .list-head { top: 59px; padding-inline: 8px }
   .list-head span:nth-child(3), .album-cell { display: none }

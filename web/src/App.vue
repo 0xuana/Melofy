@@ -4,23 +4,34 @@ import { createLoginQR, endSession, loadAccountProfile, loadLyrics, loadPlaylist
 import AppIcon from "./components/AppIcon.vue";
 import IconButton from "./components/IconButton.vue";
 import PlayerBar from "./components/PlayerBar.vue";
+import DiscoverView from "./components/DiscoverView.vue";
+import TrackAddMenu from "./components/TrackAddMenu.vue";
 import { registerMediaSessionActions } from "./mediaSession.js";
-import { isUnplayableTrack, loadTrackStream, unplayableLabel } from "./playbackFailure.js";
+import { isCurrentAudioEnded, isUnplayableTrack, loadTrackStream, unplayableLabel } from "./playbackFailure.js";
 import { formatTrackDuration } from "./trackPresentation.js";
 import { applyThemePreferences, loadThemePreferences, saveThemePreferences } from "./themePreferences.js";
 import { loadVolumePreferences, saveVolumePreferences, toggleMuteVolume } from "./volumePreferences.js";
 import QueuePanel from "./components/QueuePanel.vue";
 import { parseLyrics } from "./lyrics.js";
 import { useQueue } from "./stores/queue.js";
-import { normalizePath, resolvePath } from "./navigation.js";
+import { defaultPlaylist, isPlaylistActive, normalizePath, playlistSelectionPath, resolvePath } from "./navigation.js";
+import { calculateTrackWindow, resetPlaylistScroll } from "./trackWindow.js";
+import { createPlaylistTrackCache } from "./playlistTrackCache.js";
+import { shouldCloseQueuePanel } from "./queuePanel.js";
 
 const queue = useQueue();
 const audio = ref();
 const mainView = ref();
+const playlistList = ref();
 const tracks = ref([]);
+const favoriteTracks = ref([]);
 const unplayableTrackReasons = ref(new Map());
 const playlists = ref([]);
 const selectedPlaylist = ref(null);
+const activeAddTrackId = ref(null);
+const trackWindowStart = ref(0);
+const trackWindowSize = ref(Math.ceil(window.innerHeight / 64) + 16);
+const playlistRefreshing = ref(false);
 const filter = ref("");
 const loading = ref(true);
 const error = ref("");
@@ -61,12 +72,29 @@ let lyricsResumeTimer;
 let lyricsFollowPaused = false;
 let loginPolling = false;
 let playbackRequest = 0;
+let playlistLoadRequest = 0;
 let removeMediaSessionActions = () => {};
+const playlistTrackCache = createPlaylistTrackCache();
 
 function navigate(path, replace = false) {
   const nextPath = normalizePath(path);
   if (window.location.pathname !== nextPath) window.history[replace ? "replaceState" : "pushState"]({}, "", nextPath);
   routePath.value = nextPath;
+  activeAddTrackId.value = null;
+}
+
+function closeAddMenuOnOutsidePointer(event) {
+  if (event.target instanceof Element && event.target.closest(".track-add-control")) return;
+  activeAddTrackId.value = null;
+}
+
+function showSelectedPlaylistNavigation() {
+  navigate(playlistSelectionPath(routePath.value));
+}
+
+function openPlaylist(playlist) {
+  showSelectedPlaylistNavigation();
+  void selectPlaylist(playlist);
 }
 
 function openProfile() {
@@ -98,6 +126,15 @@ const visibleTracks = computed(() => {
   const needle = filter.value.trim().toLowerCase();
   return needle ? tracks.value.filter((track) => [track.title, track.album?.name, ...track.artists.map((artist) => artist.name)].some((value) => value?.toLowerCase().includes(needle))) : tracks.value;
 });
+const trackIds = computed(() => new Set(tracks.value.map((track) => track.id)));
+const visibleTrackIds = computed(() => new Set(visibleTracks.value.map((track) => track.id)));
+const renderedTrackEntries = computed(() => visibleTracks.value
+  .slice(trackWindowStart.value, trackWindowStart.value + trackWindowSize.value)
+  .map((track, offset) => ({ track, index: trackWindowStart.value + offset })));
+const virtualTopHeight = computed(() => `${trackWindowStart.value * 64}px`);
+const virtualBottomHeight = computed(() => `${Math.max(0, visibleTracks.value.length - trackWindowStart.value - renderedTrackEntries.value.length) * 64}px`);
+const favoriteTrackIds = computed(() => new Set(favoriteTracks.value.map((track) => track.id)));
+const queuedTrackIds = computed(() => new Set(queue.items.map((track) => track.id)));
 const activeLyric = computed(() => {
   let active = -1;
   for (let index = 0; index < lyricLines.value.length; index++) if (lyricLines.value[index].at <= currentTime.value * 1000) active = index;
@@ -167,11 +204,21 @@ function pauseLyricsFollow() {
 }
 
 function handleGlobalKeydown(event) {
-  if (event.key !== "Escape" || (!showLyrics.value && !showQueue.value)) return;
+  if (event.key !== "Escape") return;
+  if (filter.value) {
+    filter.value = "";
+    event.preventDefault();
+    return;
+  }
+  if (!showLyrics.value && !showQueue.value) return;
   const target = event.target;
   if (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
   if (showQueue.value) showQueue.value = false;
   else showLyrics.value = false;
+}
+
+function closeQueuePanelOnOutsidePointer(event) {
+  if (showQueue.value && shouldCloseQueuePanel(event.target)) showQueue.value = false;
 }
 
 function updateShortcutVisibility() {
@@ -179,11 +226,11 @@ function updateShortcutVisibility() {
   if (!mainElement) return;
   showScrollTop.value = mainElement.scrollTop > 180;
   const currentId = queue.currentId;
-  if (!currentId || !tracks.value.some((track) => track.id === currentId)) {
+  if (!currentId || !trackIds.value.has(currentId)) {
     showJumpToCurrent.value = false;
     return;
   }
-  if (!visibleTracks.value.some((track) => track.id === currentId)) {
+  if (!visibleTrackIds.value.has(currentId)) {
     showJumpToCurrent.value = true;
     return;
   }
@@ -198,14 +245,40 @@ function updateShortcutVisibility() {
   showJumpToCurrent.value = !visible;
 }
 
+function updateTrackWindow() {
+  const mainElement = mainView.value;
+  const listElement = playlistList.value;
+  if (!mainElement || !listElement || routePath.value === "/discover") return;
+  const mainBounds = mainElement.getBoundingClientRect();
+  const listBounds = listElement.getBoundingClientRect();
+  const listHeaderHeight = listElement.querySelector(".list-head")?.getBoundingClientRect().height ?? 36;
+  const firstTrackTop = listBounds.top - mainBounds.top + mainElement.scrollTop + listHeaderHeight;
+  const nextWindow = calculateTrackWindow(visibleTracks.value.length, mainElement.scrollTop, firstTrackTop, mainElement.clientHeight);
+  trackWindowStart.value = nextWindow.start;
+}
+
+function handleMainScroll() {
+  updateShortcutVisibility();
+  updateTrackWindow();
+  activeAddTrackId.value = null;
+}
+
+function handleResize() {
+  trackWindowSize.value = Math.ceil(window.innerHeight / 64) + 16;
+  updateShortcutVisibility();
+  updateTrackWindow();
+}
+
 function scrollToTop() {
   mainView.value?.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 async function jumpToCurrentTrack() {
   const currentId = queue.currentId;
-  if (!currentId || !tracks.value.some((track) => track.id === currentId)) return;
-  if (!visibleTracks.value.some((track) => track.id === currentId)) filter.value = "";
+  if (!currentId || !trackIds.value.has(currentId)) return;
+  if (!visibleTrackIds.value.has(currentId)) filter.value = "";
+  const visibleIndex = visibleTracks.value.findIndex((track) => track.id === currentId);
+  if (visibleIndex >= 0) trackWindowStart.value = Math.max(0, visibleIndex - 8);
   await nextTick();
   const mainElement = mainView.value;
   const row = trackElements.get(currentId);
@@ -268,12 +341,21 @@ async function advance(delta, reason = "manual") {
   else if (delta > 0) { audio.value?.pause(); playing.value = false; }
 }
 async function ended() {
+  if (!isCurrentAudioEnded(audio.value)) return;
   if (queue.mode === "repeat-one" && queue.current) {
     audio.value.currentTime = 0;
     await audio.value.play();
     return;
   }
   await advance(1, "ended");
+}
+function handleWindowVisibility() {
+  if (document.visibilityState !== "visible" || !mainView.value) return;
+  const main = mainView.value;
+  main.style.visibility = "hidden";
+  void main.offsetHeight;
+  main.style.visibility = "";
+  handleResize();
 }
 async function toggle() {
   if (!audio.value) return;
@@ -308,7 +390,7 @@ async function loadLibrary() {
   loading.value = true;
   try {
     playlists.value = await loadPlaylists();
-    const preferred = playlists.value.find((playlist) => playlist.kind === "liked") || playlists.value[0];
+    const preferred = defaultPlaylist(playlists.value);
     if (preferred) await selectPlaylist(preferred);
     session.value = await loadSession();
     return true;
@@ -326,15 +408,52 @@ async function loadLibrary() {
 }
 
 async function selectPlaylist(playlist) {
+  const request = ++playlistLoadRequest;
+  const cached = playlistTrackCache.read(playlist);
   selectedPlaylist.value = playlist;
   filter.value = "";
-  loading.value = true;
+  tracks.value = cached?.tracks || [];
+  trackWindowStart.value = 0;
+  resetPlaylistScroll(mainView.value);
+  updateShortcutVisibility();
+  playlistRefreshing.value = Boolean(!cached?.fresh);
+  if (cached?.fresh) {
+    if (playlist.kind === "liked") favoriteTracks.value = tracks.value;
+    unplayableTrackReasons.value = new Map(tracks.value.filter((track) => track.playable === false).map((track) => [track.id, "unavailable"]));
+    return;
+  }
   try {
-    tracks.value = await loadPlaylistTracks(playlist);
+    const loadedTracks = await loadPlaylistTracks(playlist);
+    if (request !== playlistLoadRequest) return;
+    playlistTrackCache.write(playlist, loadedTracks);
+    tracks.value = loadedTracks;
+    if (playlist.kind === "liked") favoriteTracks.value = tracks.value;
     unplayableTrackReasons.value = new Map(tracks.value.filter((track) => track.playable === false).map((track) => [track.id, "unavailable"]));
   }
-  catch (reason) { error.value = reason.message || "歌单加载失败"; tracks.value = []; }
-  finally { loading.value = false; }
+  catch (reason) {
+    if (request !== playlistLoadRequest) return;
+    error.value = reason.message || "歌单加载失败";
+    tracks.value = [];
+  }
+  finally {
+    if (request === playlistLoadRequest) playlistRefreshing.value = false;
+  }
+}
+
+function addFavoriteTrack(track) {
+  if (!favoriteTracks.value.some((item) => item.id === track.id)) favoriteTracks.value = [...favoriteTracks.value, track];
+}
+
+function addCreatedPlaylist(playlist) {
+  if (!playlists.value.some((item) => item.id === playlist.id)) playlists.value = [...playlists.value, playlist];
+}
+
+function handlePlaylistTrackAdded({ playlist, track }) {
+  playlistTrackCache.addTrack(playlist, track);
+  if (selectedPlaylist.value?.id === playlist.id && selectedPlaylist.value?.kind === playlist.kind && !tracks.value.some((item) => item.id === track.id)) {
+    tracks.value = [...tracks.value, track];
+  }
+  if (playlist.kind === "liked") addFavoriteTrack(track);
 }
 
 async function beginLogin() {
@@ -410,9 +529,12 @@ async function logout() {
 }
 
 onMounted(async () => {
-  window.addEventListener("resize", updateShortcutVisibility);
+  window.addEventListener("resize", handleResize);
   window.addEventListener("popstate", handleRouteChange);
   window.addEventListener("keydown", handleGlobalKeydown);
+  document.addEventListener("pointerdown", closeAddMenuOnOutsidePointer);
+  document.addEventListener("pointerdown", closeQueuePanelOnOutsidePointer);
+  document.addEventListener("visibilitychange", handleWindowVisibility);
   systemColorScheme.addEventListener("change", updateSystemColorScheme);
   removeMediaSessionActions = registerMediaSessionActions(navigator.mediaSession, {
     play: toggle,
@@ -435,6 +557,11 @@ onMounted(async () => {
   }
   catch (reason) { loading.value = false; error.value = reason.message || "登录状态加载失败"; }
 });
+watch(visibleTracks, async () => {
+  trackWindowStart.value = 0;
+  await nextTick();
+  updateTrackWindow();
+});
 watch([() => queue.currentId, () => filter.value, () => tracks.value], () => nextTick(updateShortcutVisibility));
 watch([activeLyric, showLyrics], async ([, isVisible]) => {
   if (!isVisible) {
@@ -450,9 +577,12 @@ onBeforeUnmount(() => {
   clearInterval(loginTimer);
   clearTimeout(lyricsResumeTimer);
   removeMediaSessionActions();
-  window.removeEventListener("resize", updateShortcutVisibility);
+  window.removeEventListener("resize", handleResize);
   window.removeEventListener("popstate", handleRouteChange);
   window.removeEventListener("keydown", handleGlobalKeydown);
+  document.removeEventListener("pointerdown", closeAddMenuOnOutsidePointer);
+  document.removeEventListener("pointerdown", closeQueuePanelOnOutsidePointer);
+  document.removeEventListener("visibilitychange", handleWindowVisibility);
   systemColorScheme.removeEventListener("change", updateSystemColorScheme);
 });
 </script>
@@ -500,24 +630,28 @@ onBeforeUnmount(() => {
     <aside class="sidebar">
       <div class="brand"><span><img src="/melofy-icon.svg" alt="" /></span> Melofy</div>
       <div class="sidebar-scroll">
-        <button v-for="playlist in playlists.filter(p => p.kind === 'liked')" :key="`liked-${playlist.id}`" class="nav" :class="{ active: selectedPlaylist?.id === playlist.id && selectedPlaylist?.kind === playlist.kind }" @click="selectPlaylist(playlist)"><AppIcon class="nav-icon" name="heart" /><span class="nav-title">{{ playlist.title }}</span></button>
+        <button class="nav" :class="{ active: routePath === '/discover' }" @click="navigate('/discover')"><AppIcon class="nav-icon" name="search" /><span class="nav-title">发现音乐</span></button>
+        <button v-for="playlist in playlists.filter(p => p.kind === 'liked')" :key="`liked-${playlist.id}`" class="nav" :class="{ active: isPlaylistActive(routePath, selectedPlaylist, playlist) }" @click="openPlaylist(playlist)"><AppIcon class="nav-icon" name="heart" /><span class="nav-title">{{ playlist.title }}</span></button>
         <div class="section-label">我的歌单</div>
-        <button v-for="playlist in playlists.filter(p => p.kind !== 'liked')" :key="`${playlist.kind}-${playlist.id}`" class="nav playlist-nav" :class="{ active: selectedPlaylist?.id === playlist.id && selectedPlaylist?.kind === playlist.kind }" @click="selectPlaylist(playlist)"><AppIcon class="nav-icon" name="collection" /><span class="nav-title">{{ playlist.title }}</span></button>
+        <button v-for="playlist in playlists.filter(p => p.kind !== 'liked')" :key="`${playlist.kind}-${playlist.id}`" class="nav playlist-nav" :class="{ active: isPlaylistActive(routePath, selectedPlaylist, playlist) }" @click="openPlaylist(playlist)"><AppIcon class="nav-icon" name="collection" /><span class="nav-title">{{ playlist.title }}</span></button>
       </div>
     </aside>
-    <main ref="mainView" @scroll="updateShortcutVisibility">
-      <header class="topbar"><label class="search-box"><AppIcon name="search" /><input v-model="filter" placeholder="在当前歌单中搜索"></label><div class="topbar-actions"><div class="theme-menu-wrap"><button class="icon-button" :class="{ active: showThemeMenu }" type="button" aria-label="外观设置" :aria-expanded="showThemeMenu" @click.stop="showThemeMenu = !showThemeMenu; showAccountMenu = false"><AppIcon name="settings" /></button><div v-if="showThemeMenu" class="account-dropdown theme-dropdown" @click.stop><strong class="menu-title">外观设置</strong><label class="account-setting"><span>色彩主题</span><select v-model="theme" aria-label="色彩主题"><option value="pink">柔粉</option><option value="orange">暖橙</option><option value="green">清绿</option><option value="blue">清蓝</option></select></label><div class="appearance-setting" role="group" aria-label="外观模式" :style="{ '--appearance-index': appearanceOptions.findIndex(option => option.value === appearanceMode) }"><span class="appearance-slider" aria-hidden="true"></span><button v-for="option in appearanceOptions" :key="option.value" type="button" :class="{ active: appearanceMode === option.value }" :aria-pressed="appearanceMode === option.value" @click="appearanceMode = option.value">{{ option.label }}</button></div></div></div><div class="account-menu-wrap"><button class="account-trigger icon-button" :class="{ active: showAccountMenu }" type="button" :aria-label="showAccountMenu ? '关闭账号菜单' : '打开账号菜单'" :aria-expanded="showAccountMenu" @click.stop="showAccountMenu = !showAccountMenu; showThemeMenu = false"><img v-if="session?.avatarUrl" :src="session.avatarUrl" alt="" /><AppIcon v-else name="account" /></button><div v-if="showAccountMenu" class="account-dropdown" @click.stop><div class="account-summary"><img v-if="session?.avatarUrl" class="account-avatar" :src="session.avatarUrl" alt="" /><span v-else class="account-avatar">Q</span><span><strong>QQ 音乐账号</strong><small>{{ session?.accountId || '本机已登录' }}</small></span></div><button class="account-action" @click="openProfile"><AppIcon name="account" /><span>账号资料</span></button><button class="account-action" :disabled="loggingOut" @click="logout"><AppIcon name="logout" /><span>{{ loggingOut ? '正在退出…' : '退出登录' }}</span></button></div></div></div></header>
-      <section class="hero"><div class="cover" :style="selectedPlaylist?.coverUrl ? { backgroundImage: `url(${selectedPlaylist.coverUrl})` } : {}">{{ selectedPlaylist?.coverUrl ? '' : selectedPlaylist?.kind === 'liked' ? '♥' : '♫' }}</div><div class="hero-copy"><p class="eyebrow">{{ selectedPlaylist?.kind === 'collected' ? 'COLLECTED PLAYLIST' : selectedPlaylist?.kind === 'liked' ? 'YOUR FAVORITES' : 'YOUR PLAYLIST' }}</p><h1>{{ selectedPlaylist?.title || 'Melofy' }}</h1><p>{{ tracks.length }} 首歌曲 · 已从 QQ 音乐完整分页加载</p></div></section>
-      <p v-if="error" class="error">{{ error }}</p>
-      <section class="list">
+    <main ref="mainView" @scroll="handleMainScroll">
+      <header class="topbar"><label class="search-box"><AppIcon name="search" /><input v-model="filter" placeholder="在当前歌单中搜索"><button v-if="filter" class="clear-filter" type="button" aria-label="清除歌单过滤" title="清除过滤" @click.prevent="filter = ''"><AppIcon name="close" /></button></label><div class="topbar-actions"><div class="theme-menu-wrap"><button class="icon-button" :class="{ active: showThemeMenu }" type="button" aria-label="外观设置" :aria-expanded="showThemeMenu" @click.stop="showThemeMenu = !showThemeMenu; showAccountMenu = false"><AppIcon name="settings" /></button><div v-if="showThemeMenu" class="account-dropdown theme-dropdown" @click.stop><strong class="menu-title">外观设置</strong><label class="account-setting"><span>色彩主题</span><select v-model="theme" aria-label="色彩主题"><option value="pink">柔粉</option><option value="orange">暖橙</option><option value="green">清绿</option><option value="blue">清蓝</option></select></label><div class="appearance-setting" role="group" aria-label="外观模式" :style="{ '--appearance-index': appearanceOptions.findIndex(option => option.value === appearanceMode) }"><span class="appearance-slider" aria-hidden="true"></span><button v-for="option in appearanceOptions" :key="option.value" type="button" :class="{ active: appearanceMode === option.value }" :aria-pressed="appearanceMode === option.value" @click="appearanceMode = option.value">{{ option.label }}</button></div></div></div><div class="account-menu-wrap"><button class="account-trigger icon-button" :class="{ active: showAccountMenu }" type="button" :aria-label="showAccountMenu ? '关闭账号菜单' : '打开账号菜单'" :aria-expanded="showAccountMenu" @click.stop="showAccountMenu = !showAccountMenu; showThemeMenu = false"><img v-if="session?.avatarUrl" :src="session.avatarUrl" alt="" /><AppIcon v-else name="account" /></button><div v-if="showAccountMenu" class="account-dropdown" @click.stop><div class="account-summary"><img v-if="session?.avatarUrl" class="account-avatar" :src="session.avatarUrl" alt="" /><span v-else class="account-avatar">Q</span><span><strong>QQ 音乐账号</strong><small>{{ session?.accountId || '本机已登录' }}</small></span></div><button class="account-action" @click="openProfile"><AppIcon name="account" /><span>账号资料</span></button><button class="account-action" :disabled="loggingOut" @click="logout"><AppIcon name="logout" /><span>{{ loggingOut ? '正在退出…' : '退出登录' }}</span></button></div></div></div></header>
+      <DiscoverView v-if="routePath === '/discover'" :playlists="playlists" :liked-ids="new Set(favoriteTracks.map(track => track.id))" :queue-ids="new Set(queue.items.map(track => track.id))" @play="(track, context) => play(track, context)" @append="queue.append" @liked="addFavoriteTrack" @playlist-created="addCreatedPlaylist" @playlist-updated="handlePlaylistTrackAdded" />
+      <section v-if="routePath !== '/discover'" class="hero"><div v-if="playlistRefreshing" class="playlist-refresh-status" role="status" aria-live="polite"><span class="playlist-refresh-spinner" aria-hidden="true"></span><span>加载更新中</span></div><div class="cover" :style="selectedPlaylist?.coverUrl ? { backgroundImage: `url(${selectedPlaylist.coverUrl})` } : {}">{{ selectedPlaylist?.coverUrl ? '' : selectedPlaylist?.kind === 'liked' ? '♥' : '♫' }}</div><div class="hero-copy"><p class="eyebrow">{{ selectedPlaylist?.kind === 'collected' ? 'COLLECTED PLAYLIST' : selectedPlaylist?.kind === 'liked' ? 'YOUR FAVORITES' : 'YOUR PLAYLIST' }}</p><h1>{{ selectedPlaylist?.title || 'Melofy' }}</h1><p>{{ tracks.length }} 首歌曲 · 已从 QQ 音乐完整分页加载</p></div></section>
+      <p v-if="error && routePath !== '/discover'" class="error">{{ error }}</p>
+      <section v-if="routePath !== '/discover'" ref="playlistList" class="list">
         <div class="list-head"><span>#</span><span>歌曲</span><span>专辑</span><span>时长</span><span>操作</span></div>
-        <p v-if="loading" class="empty">正在加载歌单…</p>
-        <div v-for="(track, index) in visibleTracks" :key="track.id" :ref="(element) => setTrackElement(track.id, element)" class="track" :class="{ 'is-current': track.id === queue.currentId, 'is-unplayable': isTrackUnplayable(track) }" @dblclick="play(track)">
-          <span class="track-index"><span v-if="track.id === queue.currentId" class="playing-meter" :class="{ paused: !playing }" aria-label="当前播放"><i></i><i></i><i></i></span><template v-else>{{ index + 1 }}</template></span><span class="song-cell"><strong>{{ track.title }}<span v-if="isTrackUnplayable(track)" class="unplayable-badge">{{ trackUnplayableLabel(track) }}</span></strong><small>{{ track.artists.map(a => a.name).join(' / ') }}</small></span><span class="album-cell">{{ track.album?.name || '—' }}</span><span class="duration-cell">{{ formatTrackDuration(track.durationMs) }}</span>
-          <span class="actions"><IconButton icon="play" :label="`播放 ${track.title}`" variant="row-play" @click="play(track)" /><IconButton icon="forward" :label="`${track.title} 下一首播放`" @click="queue.playNext(track)" /><IconButton icon="add" :label="`${track.title} 加入队列`" @click="queue.append(track)" /></span>
+        <div class="track-virtual-spacer" aria-hidden="true" :style="{ height: virtualTopHeight }"></div>
+        <div v-for="entry in renderedTrackEntries" :key="entry.track.id" :ref="(element) => setTrackElement(entry.track.id, element)" class="track" :class="{ 'is-current': entry.track.id === queue.currentId, 'is-unplayable': isTrackUnplayable(entry.track), 'has-open-add-menu': activeAddTrackId === entry.track.id }" @dblclick="play(entry.track)">
+          <span class="track-index"><span v-if="entry.track.id === queue.currentId" class="playing-meter" :class="{ paused: !playing }" aria-label="当前播放"><i></i><i></i><i></i></span><template v-else>{{ entry.index + 1 }}</template></span><span class="song-cell"><strong>{{ entry.track.title }}<span v-if="isTrackUnplayable(entry.track)" class="unplayable-badge">{{ trackUnplayableLabel(entry.track) }}</span></strong><small>{{ entry.track.artists.map(a => a.name).join(' / ') }}</small></span><span class="album-cell">{{ entry.track.album?.name || '—' }}</span><span class="duration-cell">{{ formatTrackDuration(entry.track.durationMs) }}</span>
+          <span class="actions"><IconButton icon="play" :label="`播放 ${entry.track.title}`" variant="row-play" @click="play(entry.track)" /><IconButton icon="forward" :label="`${entry.track.title} 下一首播放`" @click="queue.playNext(entry.track)" /><TrackAddMenu :track="entry.track" :playlists="playlists" :liked-ids="favoriteTrackIds" :queue-ids="queuedTrackIds" :open="activeAddTrackId === entry.track.id" @toggle="activeAddTrackId = activeAddTrackId === entry.track.id ? null : entry.track.id" @close="activeAddTrackId = null" @append="queue.append" @liked="addFavoriteTrack" @playlist-created="addCreatedPlaylist" @playlist-updated="handlePlaylistTrackAdded" /></span>
         </div>
+        <div class="track-virtual-spacer" aria-hidden="true" :style="{ height: virtualBottomHeight }"></div>
+        <p v-if="visibleTracks.length" class="virtual-list-count">显示 {{ renderedTrackEntries.length }} 首 / 共 {{ visibleTracks.length }} 首</p>
       </section>
-      <div class="list-shortcuts">
+      <div v-if="routePath !== '/discover'" class="list-shortcuts">
         <IconButton v-if="showJumpToCurrent" icon="locate" label="跳转到正在播放的歌曲" @click="jumpToCurrentTrack" />
         <IconButton v-if="showScrollTop" icon="top" label="回到列表顶部" @click="scrollToTop" />
       </div>

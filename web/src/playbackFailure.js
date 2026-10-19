@@ -2,6 +2,10 @@ export function isUnplayableTrack(track, reason) {
   return track?.playable === false || ["rights", "subscription", "region", "unavailable"].includes(reason);
 }
 
+export function isCurrentAudioEnded(audio) {
+  return audio?.ended === true;
+}
+
 export function unplayableLabel(reason) {
   return ({
     rights: "无版权",
