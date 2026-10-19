@@ -76,9 +76,13 @@ export interface TrackLyrics {
 export interface QQMusicProvider {
   getSession(): Promise<AccountSession | null>;
   getAccountProfile(): Promise<QQMusicAccountProfile>;
+  searchTracks(query: string, page: number, pageSize: number): Promise<Page<Track>>;
   getLikedSongs(cursor: string | null, pageSize: number): Promise<Page<Track>>;
   getPlaylists(): Promise<readonly PlaylistSummary[]>;
   getPlaylistSongs(playlistId: string, dirId: string | null, cursor: string | null, pageSize: number): Promise<Page<Track>>;
+  getTrackPlaylistMembership(trackId: string): Promise<readonly string[]>;
+  createPlaylist(name: string): Promise<PlaylistSummary>;
+  addTrackToPlaylist(trackId: string, playlist: PlaylistSummary): Promise<void>;
   getLyrics(trackId: string): Promise<TrackLyrics>;
   resolveStream(
     trackId: string,

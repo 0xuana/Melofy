@@ -20,9 +20,12 @@ export interface QQMusicCredentials {
 
 interface RawSong {
   readonly id?: number;
+  readonly songid?: number;
+  readonly song_id?: number;
   readonly type?: number;
   readonly songtype?: number;
   readonly mid?: string;
+  readonly songmid?: string;
   readonly title?: string;
   readonly name?: string;
   readonly interval?: number;
@@ -71,8 +74,12 @@ export class LiveQQMusicProvider implements QQMusicProvider {
   readonly #credentials: QQMusicCredentials;
   readonly #fetch: typeof globalThis.fetch;
   readonly #tracks = new Map<string, CachedTrack>();
+  readonly #membershipCache = new Map<string, { readonly ids: readonly string[]; readonly expiresAt: number }>();
+  readonly #membershipRequests = new Map<string, Promise<readonly string[]>>();
   #favoritePlaylistId: number | null = null;
   #profile: Record<string, unknown> | null = null;
+  #createdPlaylistsCache: { readonly playlists: readonly PlaylistSummary[]; readonly expiresAt: number } | null = null;
+  #createdPlaylistsRequest: Promise<readonly PlaylistSummary[]> | null = null;
 
   constructor(credentials: QQMusicCredentials, fetchImplementation: typeof globalThis.fetch = globalThis.fetch) {
     this.#credentials = credentials;
@@ -105,6 +112,39 @@ export class LiveQQMusicProvider implements QQMusicProvider {
       displayName: typeof displayName === "string" && displayName ? displayName : null,
       avatarUrl: this.#avatarUrl(),
     };
+  }
+
+  async searchTracks(query: string, page: number, pageSize: number): Promise<Page<Track>> {
+    const keyword = query.trim();
+    if (!keyword) return { items: [], nextCursor: null, total: 0 };
+    const pageNumber = Math.max(1, Math.floor(page));
+    const limit = Math.max(1, Math.min(50, Math.floor(pageSize)));
+    const module = "music.search.SearchCgiService";
+    const response = await this.#fetch(musicuUrl, {
+      method: "POST",
+      headers: { ...this.#headers(), "content-type": "application/json" },
+      body: JSON.stringify({ [module]: {
+        module,
+        method: "DoSearchForQQMusicDesktop",
+        param: { search_type: 0, query: keyword, page_num: pageNumber, num_per_page: limit },
+      } }),
+    });
+    if (!response.ok) throw new Error(`QQMusic search failed with HTTP ${response.status}`);
+    const payload = asRecord(await response.json());
+    const result = asRecord(payload[module]);
+    if (payload.code !== undefined && payload.code !== 0) throw new Error(`QQMusic search failed with code ${String(payload.code)}`);
+    if (result.code !== 0) throw new Error(`QQMusic search failed with code ${String(result.code)}`);
+    const data = asRecord(result.data);
+    const body = asRecord(data.body);
+    const song = asRecord(body.song);
+    const songs = Array.isArray(song.list) ? song.list as RawSong[] : [];
+    const meta = asRecord(data.meta);
+    const totalValue = Number(meta.sum ?? meta.total ?? song.total);
+    const total = Number.isSafeInteger(totalValue) && totalValue >= 0 ? totalValue : null;
+    const items = songs.flatMap((item) => { const track = this.#toTrack(item); return track ? [track] : []; });
+    const nextPage = pageNumber + 1;
+    const hasMore = total === null ? songs.length === limit : pageNumber * limit < total;
+    return { items, nextCursor: hasMore ? String(nextPage) : null, total };
   }
 
   async getLikedSongs(cursor: string | null, pageSize: number): Promise<Page<Track>> {
@@ -147,15 +187,7 @@ export class LiveQQMusicProvider implements QQMusicProvider {
     const favorite = music.find((item) => item.type === 1);
     const liked = this.#toPlaylist(favorite ?? {}, "liked", "我喜欢");
 
-    const createdData = await this.#requestMusicu("created", {
-      module: "music.musicasset.PlaylistBaseRead",
-      method: "GetPlaylistByUin",
-      param: { uin: this.#credentials.accountId },
-    });
-    const created = (Array.isArray(createdData.v_playlist) ? createdData.v_playlist : [])
-      .map(asRecord).map((item) => this.#toPlaylist(item, "created"))
-      .filter((item): item is PlaylistSummary => item !== null && item.id !== liked?.id);
-
+    const created = (await this.#getCreatedPlaylists()).filter((playlist) => playlist.id !== liked?.id);
     const creator = asRecord(profile.creator);
     const encryptedUin = typeof creator.encrypt_uin === "string" ? creator.encrypt_uin : "";
     const collected: PlaylistSummary[] = [];
@@ -178,6 +210,25 @@ export class LiveQQMusicProvider implements QQMusicProvider {
       .filter((item, index, all) => all.findIndex((candidate) => candidate.id === item.id && candidate.kind === item.kind) === index);
   }
 
+  async #getCreatedPlaylists(): Promise<readonly PlaylistSummary[]> {
+    if (this.#createdPlaylistsCache && this.#createdPlaylistsCache.expiresAt > Date.now()) return this.#createdPlaylistsCache.playlists;
+    if (this.#createdPlaylistsRequest) return this.#createdPlaylistsRequest;
+    this.#createdPlaylistsRequest = (async () => {
+      const createdData = await this.#requestMusicu("created", {
+      module: "music.musicasset.PlaylistBaseRead",
+      method: "GetPlaylistByUin",
+      param: { uin: this.#credentials.accountId },
+      });
+      const playlists = (Array.isArray(createdData.v_playlist) ? createdData.v_playlist : [])
+        .map(asRecord).map((item) => this.#toPlaylist(item, "created"))
+        .filter((item): item is PlaylistSummary => item !== null);
+      this.#createdPlaylistsCache = { playlists, expiresAt: Date.now() + 30_000 };
+      return playlists;
+    })();
+    try { return await this.#createdPlaylistsRequest; }
+    finally { this.#createdPlaylistsRequest = null; }
+  }
+
   async getPlaylistSongs(playlistId: string, dirId: string | null, cursor: string | null, pageSize: number): Promise<Page<Track>> {
     const offset = numericCursor(cursor);
     const limit = Math.max(1, Math.min(pageSize, 100));
@@ -191,6 +242,102 @@ export class LiveQQMusicProvider implements QQMusicProvider {
     const items = songs.flatMap((song) => { const track = this.#toTrack(song); return track ? [track] : []; });
     const nextOffset = offset + songs.length;
     return { items, nextCursor: songs.length > 0 && (total === null || nextOffset < total) ? String(nextOffset) : null, total };
+  }
+
+  async getTrackPlaylistMembership(trackId: string): Promise<readonly string[]> {
+    const cached = this.#membershipCache.get(trackId);
+    if (cached && cached.expiresAt > Date.now()) return cached.ids;
+    const ongoing = this.#membershipRequests.get(trackId);
+    if (ongoing) return ongoing;
+    const request = (async () => {
+      const playlists = await this.#getCreatedPlaylists();
+      const memberships: string[] = [];
+      let nextIndex = 0;
+      const worker = async () => {
+        for (;;) {
+          const index = nextIndex++;
+          const playlist = playlists[index];
+          if (!playlist) return;
+          let cursor: string | null = null;
+          do {
+            const page = await this.getPlaylistSongs(playlist.id, playlist.dirId, cursor, 100);
+            if (page.items.some((track) => track.id === trackId)) {
+              memberships.push(playlist.id);
+              break;
+            }
+            cursor = page.nextCursor;
+          } while (cursor);
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(4, playlists.length) }, worker));
+      const ids = memberships.sort();
+      this.#membershipCache.set(trackId, { ids, expiresAt: Date.now() + 30_000 });
+      return ids;
+    })();
+    this.#membershipRequests.set(trackId, request);
+    try { return await request; }
+    finally { this.#membershipRequests.delete(trackId); }
+  }
+
+  async createPlaylist(name: string): Promise<PlaylistSummary> {
+    const dirName = name.trim();
+    if (!dirName || dirName.length > 40) throw new Error("歌单名称不能为空，且不能超过 40 个字符");
+    const data = await this.#requestMusicu("music.musicasset.PlaylistBaseWrite", {
+      module: "music.musicasset.PlaylistBaseWrite",
+      method: "AddPlaylist",
+      param: { dirName },
+    });
+    const result = asRecord(data.result ?? data);
+    const retCode = Number(result.retCode ?? result.retcode ?? data.retCode ?? 0);
+    if (retCode !== 0) throw new Error(`QQMusic create playlist failed with code ${retCode}`);
+    const playlist = this.#toPlaylist(result, "created", dirName);
+    if (!playlist) throw new Error("QQMusic did not return the created playlist id");
+    this.#createdPlaylistsCache = null;
+    return playlist;
+  }
+
+  async addTrackToPlaylist(trackId: string, playlist: PlaylistSummary): Promise<void> {
+    if (playlist.kind === "collected") throw new Error("不能向收藏的歌单添加歌曲");
+    const cached = this.#tracks.get(trackId);
+    const songId = Number(trackId);
+    if (!cached?.mid || !Number.isSafeInteger(songId) || songId <= 0) throw new Error("歌曲信息不完整，无法添加到歌单");
+    const data = await this.#requestMusicu("music.musicasset.PlaylistDetailWrite", {
+      module: "music.musicasset.PlaylistDetailWrite",
+      method: "AddSonglist",
+      param: {
+        dirId: playlist.kind === "liked" ? 201 : Number(playlist.dirId ?? 0),
+        v_songInfo: [{ songId, songType: cached.songType }],
+      },
+    }, true);
+    const result = asRecord(data.result ?? data);
+    const codeValue = result.retCode ?? result.retcode ?? result.code ?? result.errCode ?? result.errcode ?? data.retCode ?? data.retcode;
+    if (codeValue !== undefined) {
+      const code = Number(codeValue);
+      if (!Number.isFinite(code) || code !== 0) throw new Error(`QQMusic add to playlist failed with code ${String(codeValue)}`);
+    } else if (!((typeof result.updateTime === "number" && Number.isFinite(result.updateTime))
+      || (typeof result.updateTime === "string" && result.updateTime.trim() !== "" && Number.isFinite(Number(result.updateTime))))) {
+      throw new Error("QQMusic did not confirm that the track was added to the playlist");
+    }
+
+    if (!await this.#containsTrack(playlist, trackId)) {
+      throw new Error("QQMusic accepted the add request but the track was not found in the playlist afterward");
+    }
+    this.#membershipCache.delete(trackId);
+  }
+
+  async #containsTrack(playlist: PlaylistSummary, trackId: string): Promise<boolean> {
+    let cursor: string | null = null;
+    const seenCursors = new Set<string>();
+    do {
+      if (cursor !== null && seenCursors.has(cursor)) throw new Error("QQ Music returned a repeated playlist cursor while verifying the add");
+      if (cursor !== null) seenCursors.add(cursor);
+      const page: Page<Track> = playlist.kind === "liked"
+        ? await this.getLikedSongs(cursor, 100)
+        : await this.getPlaylistSongs(playlist.id, playlist.dirId, cursor, 100);
+      if (page.items.some((track) => track.id === trackId)) return true;
+      cursor = page.nextCursor;
+    } while (cursor);
+    return false;
   }
 
   async resolveStream(
@@ -291,7 +438,7 @@ export class LiveQQMusicProvider implements QQMusicProvider {
     return this.#profile;
   }
 
-  async #requestMusicu(key: string, request: Record<string, unknown>): Promise<Record<string, unknown>> {
+  async #requestMusicu(key: string, request: Record<string, unknown>, allowMissingCodes = false): Promise<Record<string, unknown>> {
     const response = await this.#fetch(musicuUrl, {
       method: "POST",
       headers: { ...this.#headers(), "content-type": "application/json" },
@@ -301,7 +448,10 @@ export class LiveQQMusicProvider implements QQMusicProvider {
 
     const payload = asRecord(await response.json());
     const result = asRecord(payload[key]);
-    if (payload.code !== 0 || result.code !== 0) {
+    const hasPayloadCode = payload.code !== undefined;
+    const hasModuleCode = result.code !== undefined;
+    if ((hasPayloadCode && payload.code !== 0) || (hasModuleCode && result.code !== 0)
+      || (!allowMissingCodes && (!hasPayloadCode || !hasModuleCode))) {
       throw new Error(`QQMusic rejected ${key} with code ${String(result.code ?? payload.code)}`);
     }
     return asRecord(result.data);
@@ -335,10 +485,11 @@ export class LiveQQMusicProvider implements QQMusicProvider {
   }
 
   #toTrack(song: RawSong): Track | null {
-    const id = song.id === undefined ? song.mid : String(song.id);
+    const idValue = song.id ?? song.songid ?? song.song_id ?? song.mid ?? song.songmid;
+    const id = idValue === undefined ? undefined : String(idValue);
     if (!id) return null;
     const file = asRecord(song.file);
-    const mid = song.mid ?? "";
+    const mid = song.mid ?? song.songmid ?? "";
     this.#tracks.set(id, { mid, songType: song.type ?? song.songtype ?? 0, file });
     const albumMid = song.album?.mid ?? "";
 
