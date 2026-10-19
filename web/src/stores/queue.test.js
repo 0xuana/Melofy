@@ -72,6 +72,35 @@ test("shuffle keeps history for previous navigation", () => {
   } finally { Math.random = originalRandom; }
 });
 
+test("selecting another playlist track while shuffled rebuilds the shuffle queue", () => {
+  const originalRandom = Math.random;
+  Math.random = () => 0.999;
+  try {
+    const value = queue();
+    value.playNow(tracks[0], tracks);
+    value.setMode("shuffle");
+    value.playNow(tracks[1], tracks);
+    assert.equal(value.mode, "shuffle");
+    assert.equal(value.current.id, "b");
+    assert.deepEqual(value.items.map((item) => item.id), ["b", "a", "c", "d"]);
+    assert.equal(value.advance(1).id, "a");
+  } finally { Math.random = originalRandom; }
+});
+
+test("manually selecting a queued track while shuffled rebuilds its continuation", () => {
+  const originalRandom = Math.random;
+  Math.random = () => 0;
+  try {
+    const value = queue();
+    value.playNow(tracks[0], tracks);
+    value.setMode("shuffle");
+    value.select("c");
+    assert.equal(value.mode, "shuffle");
+    assert.deepEqual(value.items.map((item) => item.id), ["c", "d", "b", "a"]);
+    assert.equal(value.advance(1).id, "d");
+  } finally { Math.random = originalRandom; }
+});
+
 test("cycling playback mode rebuilds the queue from the selected playlist", () => {
   const value = queue();
   value.playNow(tracks[1], [tracks[1], tracks[3]]);

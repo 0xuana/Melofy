@@ -55,7 +55,10 @@ export const useQueue = defineStore("queue", {
     playNow(track, context = []) {
       const unique = new Map((context.length ? context : [track, ...this.items]).map((item) => [item.id, item]));
       if (!unique.has(track.id)) unique.set(track.id, track);
-      this.items = [...unique.values()];
+      const items = [...unique.values()];
+      this.items = this.mode === "shuffle"
+        ? [items.find((item) => item.id === track.id), ...shuffled(items.filter((item) => item.id !== track.id))]
+        : items;
       this.currentId = track.id;
       this.playNextIds = [];
       this.shuffleHistory = [track.id];
@@ -80,6 +83,10 @@ export const useQueue = defineStore("queue", {
     },
     select(trackId) {
       if (!this.items.some((item) => item.id === trackId)) return null;
+      if (this.mode === "shuffle") {
+        const selected = this.items.find((item) => item.id === trackId);
+        this.items = [selected, ...shuffled(this.items.filter((item) => item.id !== trackId))];
+      }
       this.currentId = trackId;
       this.playNextIds = [];
       this.shuffleHistory = [trackId];
