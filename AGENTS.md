@@ -20,6 +20,8 @@ For separate debugging, run `npm run dev --workspace @qqmusic-web/api` and `npm 
 
 Follow nearby code: use two-space indentation, semicolons in TypeScript and JavaScript, and descriptive camelCase names for values and functions. Vue components use PascalCase filenames; tests use the adjacent `*.test.ts` or `*.test.js` naming pattern. Add focused Node test-runner cases alongside the code they cover. Keep provider protocol details in the provider package and keep browser code independent of long-lived QQ credentials.
 
+For QQ Music API protocol behavior, use [Suxiaoqinx/QQMusicapi](https://github.com/Suxiaoqinx/QQMusicapi/tree/main) as a reference when implementing or debugging endpoints and authentication. Treat it as an implementation reference, verify behavior against this project's tests and current QQ Music responses, and never copy real credentials or session data into source or logs.
+
 ## Commits and Pull Requests
 
 Use short, imperative Conventional Commit subjects such as `feat(web): add queue controls` or `fix(provider): handle expired credentials`. Use `feat`, `fix`, `docs`, `test`, or `chore` scopes that identify the affected area. Pull requests should explain the user-visible change, list verification commands and results, link related issues when available, and include screenshots for UI changes. Call out configuration or session-storage changes explicitly; never attach session files, tokens, or signed stream URLs.
