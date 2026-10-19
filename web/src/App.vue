@@ -590,7 +590,7 @@ onBeforeUnmount(() => {
 <template>
   <div v-if="routePath === '/login' || !session" class="login-screen">
       <div class="login-card">
-        <div class="brand"><span><img src="/melofy-icon.svg" alt="" /></span> Melofy</div>
+        <div class="brand"><span><img src="/melofy-icon-v2.svg" alt="" /></span> Melofy</div>
         <p class="eyebrow">YOUR MUSIC, YOUR WAY</p>
         <h1>登录 QQ 音乐</h1>
         <p class="login-description">选择 QQ 或微信扫码登录。登录信息将安全保存在这台电脑上。</p>
@@ -616,7 +616,7 @@ onBeforeUnmount(() => {
   <section v-else-if="routePath === '/profile'" class="profile-screen">
     <div class="profile-card">
       <button class="profile-back" type="button" @click="navigate('/')">← 返回播放器</button>
-      <div class="brand"><span><img src="/melofy-icon.svg" alt="" /></span> Melofy</div>
+      <div class="brand"><span><img src="/melofy-icon-v2.svg" alt="" /></span> Melofy</div>
       <p class="eyebrow">ACCOUNT PROFILE</p>
       <img v-if="accountProfile?.avatarUrl || session.avatarUrl" class="profile-avatar" :src="accountProfile?.avatarUrl || session.avatarUrl" alt="账号头像" />
       <div v-else class="profile-avatar profile-avatar--empty"><AppIcon name="account" /></div>
@@ -628,7 +628,7 @@ onBeforeUnmount(() => {
   </section>
   <div v-else class="shell" @click="showAccountMenu = false; showThemeMenu = false">
     <aside class="sidebar">
-      <div class="brand"><span><img src="/melofy-icon.svg" alt="" /></span> Melofy</div>
+      <div class="brand"><span><img src="/melofy-icon-v2.svg" alt="" /></span> Melofy</div>
       <div class="sidebar-scroll">
         <button class="nav" :class="{ active: routePath === '/discover' }" @click="navigate('/discover')"><AppIcon class="nav-icon" name="search" /><span class="nav-title">发现音乐</span></button>
         <button v-for="playlist in playlists.filter(p => p.kind === 'liked')" :key="`liked-${playlist.id}`" class="nav" :class="{ active: isPlaylistActive(routePath, selectedPlaylist, playlist) }" @click="openPlaylist(playlist)"><AppIcon class="nav-icon" name="heart" /><span class="nav-title">{{ playlist.title }}</span></button>

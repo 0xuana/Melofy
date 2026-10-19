@@ -1,29 +1,47 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
   <defs>
-    <radialGradient id="orange" cx="35%" cy="28%" r="78%">
-      <stop offset="0" stop-color="#ffc842" />
-      <stop offset="1" stop-color="#ff9e08" />
+    <radialGradient id="disc" cx="50%" cy="50%" r="68%">
+      <stop offset="0" stop-color="#FF9908" />
+      <stop offset="0.72" stop-color="#FFAA12" />
+      <stop offset="1" stop-color="#FFC12A" />
     </radialGradient>
-    <linearGradient id="white" x1="0" y1="0" x2="0.8" y2="1">
-      <stop offset="0" stop-color="#fffef7" />
-      <stop offset="1" stop-color="#fff1dc" />
+    <linearGradient id="ivory" x1="0" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#FFFDF5" />
+      <stop offset="1" stop-color="#FFF1D8" />
     </linearGradient>
-    <linearGradient id="wave" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#fff8a8" />
-      <stop offset="1" stop-color="#ffe95a" />
+    <linearGradient id="equalizer" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFF9A8" />
+      <stop offset="1" stop-color="#FFE84F" />
+    </linearGradient>
+    <linearGradient id="separator" x1="0" y1="0" x2="0.7" y2="1">
+      <stop offset="0" stop-color="#FBC341" />
+      <stop offset="1" stop-color="#FDA745" />
     </linearGradient>
   </defs>
-  <circle cx="50" cy="50" r="49" fill="url(#orange)" />
-  <path d="M20 57V47a30 30 0 0 1 60 0v10" fill="none" stroke="url(#white)" stroke-linecap="round" stroke-width="7" />
-  <ellipse cx="22" cy="61" rx="8" ry="14" fill="url(#white)" />
-  <ellipse cx="78" cy="61" rx="8" ry="14" fill="url(#white)" />
-  <rect x="23" y="46" width="10" height="35" rx="5" fill="url(#white)" transform="rotate(-5 28 63)" />
-  <rect x="67" y="46" width="10" height="35" rx="5" fill="url(#white)" transform="rotate(5 72 63)" />
-  <g fill="url(#wave)">
-    <rect x="36" y="56" width="5" height="15" rx="2.5" />
-    <rect x="44" y="48" width="6" height="29" rx="3" />
-    <rect x="53" y="42" width="6" height="41" rx="3" />
-    <rect x="62" y="48" width="6" height="29" rx="3" />
-    <rect x="71" y="56" width="5" height="15" rx="2.5" />
+
+  <circle cx="50" cy="50" r="49" fill="url(#disc)" />
+
+  <!-- Broad headband with the flatter inner arc of the source mark -->
+  <path d="M20 58V48C20 30 33 16 50 16s30 14 30 32v10h-6V48c0-14-10-25-24-25S26 34 26 48v10Z" fill="url(#ivory)" />
+
+  <!-- Outer ear cups -->
+  <ellipse cx="22" cy="62" rx="8.5" ry="13" fill="url(#ivory)" />
+  <ellipse cx="78" cy="62" rx="8.5" ry="13" fill="url(#ivory)" />
+
+  <!-- Warm separator visible between each cup and its padded band -->
+  <path d="M25 47c-4 2-5 6-4.5 12l1.2 10c.5 4 2.3 7 5.8 9l2.4-1.6c-2.4-4-3.5-10-3.8-16.5-.2-5 1-9.1 3.2-12.2L27 46.5Z" fill="url(#separator)" />
+  <path d="M25 47c-4 2-5 6-4.5 12l1.2 10c.5 4 2.3 7 5.8 9l2.4-1.6c-2.4-4-3.5-10-3.8-16.5-.2-5 1-9.1 3.2-12.2L27 46.5Z" fill="url(#separator)" transform="translate(100 0) scale(-1 1)" />
+
+  <!-- Inner padded bands -->
+  <rect x="22" y="45" width="12" height="33" rx="6" fill="url(#ivory)" transform="rotate(-5 28 61.5)" />
+  <rect x="66" y="45" width="12" height="33" rx="6" fill="url(#ivory)" transform="rotate(5 72 61.5)" />
+
+  <!-- Narrow, evenly spaced audio bars centered between the ear pads -->
+  <g fill="url(#equalizer)">
+    <rect x="36" y="55" width="4" height="8" rx="2" />
+    <rect x="41.5" y="51" width="4.5" height="15" rx="2.25" />
+    <rect x="47.5" y="44" width="5" height="27" rx="2.5" />
+    <rect x="54" y="51" width="4.5" height="15" rx="2.25" />
+    <rect x="60" y="55" width="4" height="8" rx="2" />
   </g>
 </svg>
