@@ -6,10 +6,12 @@ import type { PersistentQQMusicCredentials } from "./session-store.js";
 
 export class SessionManager {
   readonly #store: SessionStore;
+  readonly #validate: (provider: QQMusicProvider) => Promise<void>;
   #provider: QQMusicProvider | null = null;
 
-  constructor(store: SessionStore, importedSession: QQMusicCredentials | null = null) {
+  constructor(store: SessionStore, importedSession: QQMusicCredentials | null = null, validate?: (provider: QQMusicProvider) => Promise<void>) {
     this.#store = store;
+    this.#validate = validate ?? (async (provider) => { await provider.getAccountProfile(); });
     const credentials = store.load() ?? importedSession;
     if (credentials) {
       if (!store.load()) store.save(credentials);
@@ -21,9 +23,11 @@ export class SessionManager {
     return this.#provider;
   }
 
-  setCredentials(credentials: PersistentQQMusicCredentials): void {
+  async setCredentials(credentials: PersistentQQMusicCredentials): Promise<void> {
+    const provider = new LiveQQMusicProvider(credentials);
+    await this.#validate(provider);
     this.#store.save(credentials);
-    this.#provider = new LiveQQMusicProvider(credentials);
+    this.#provider = provider;
   }
 
   clear(): void {

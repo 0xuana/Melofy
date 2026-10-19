@@ -47,7 +47,7 @@ export function createRequestHandler(
         if (!authentication) { sendJson(response, 501, { error: "QQ QR login is not configured" }); return; }
         const id = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
         const result = await authentication.qrLogin.poll(id);
-        if (result.credentials) authentication.sessions.setCredentials(result.credentials);
+        if (result.credentials) await authentication.sessions.setCredentials(result.credentials);
         sendJson(response, 200, { status: result.status });
       } else if (request.method === "POST" && url.pathname === "/api/auth/wechat/qr") {
         if (!authentication) { sendJson(response, 501, { error: "WeChat QR login is not configured" }); return; }
@@ -56,7 +56,7 @@ export function createRequestHandler(
         if (!authentication) { sendJson(response, 501, { error: "WeChat QR login is not configured" }); return; }
         const id = decodeURIComponent(url.pathname.split("/").at(-1) ?? "");
         const result = await authentication.wechatQrLogin.poll(id);
-        if (result.credentials) authentication.sessions.setCredentials(result.credentials);
+        if (result.credentials) await authentication.sessions.setCredentials(result.credentials);
         sendJson(response, 200, { status: result.status });
       } else if (request.method === "GET" && url.pathname === "/api/session") {
         sendJson(response, 200, { session: provider ? await provider.getSession() : null });

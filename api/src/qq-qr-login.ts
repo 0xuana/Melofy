@@ -45,7 +45,13 @@ function cookieMap(values: readonly string[]): Map<string, string> {
   for (const value of values) {
     const pair = value.split(";", 1)[0]?.trim();
     const separator = pair?.indexOf("=") ?? -1;
-    if (pair && separator > 0) result.set(pair.slice(0, separator).trim(), pair.slice(separator + 1).trim());
+    if (pair && separator > 0) {
+      const name = pair.slice(0, separator).trim();
+      const cookieValue = pair.slice(separator + 1).trim();
+      // QQ may emit a valid cookie and then an empty deletion cookie with the
+      // same name in one response. Preserve the usable value for this response.
+      if (cookieValue || !result.has(name)) result.set(name, cookieValue);
+    }
   }
   return result;
 }
@@ -55,7 +61,10 @@ function cookieHeader(cookies: ReadonlyMap<string, string>): string {
 }
 
 function mergeCookies(target: Map<string, string>, headers: Headers): void {
-  for (const [name, value] of cookieMap(setCookies(headers))) target.set(name, value);
+  for (const [name, value] of cookieMap(setCookies(headers))) {
+    if (value) target.set(name, value);
+    else target.delete(name);
+  }
 }
 
 function createXloginUrl(): URL {
@@ -95,7 +104,10 @@ export class QQQrLoginService {
     if (!cookies.has("pt_login_sig")) throw new Error("QQ xlogin response did not include pt_login_sig");
 
     const url = new URL("https://xui.ptlogin2.qq.com/ssl/ptqrshow");
-    for (const [key, value] of Object.entries({ s: "8", e: "0", appid: "716027609", type: "0", t: String(Math.random()), daid: "383", pt_3rd_aid: "100497308" })) url.searchParams.set(key, value);
+    for (const [key, value] of Object.entries({
+      appid: "716027609", e: "2", l: "M", s: "3", d: "72", v: "4", t: String(Math.random()),
+      daid: "383", pt_3rd_aid: "100497308", u1: "https://graph.qq.com/oauth2.0/login_jump",
+    })) url.searchParams.set(key, value);
     const response = await this.#fetch(url, {
       headers: { referer: xloginUrl.toString(), ...(cookies.size ? { cookie: cookieHeader(cookies) } : {}) },
       redirect: "manual",
@@ -149,9 +161,16 @@ export class QQQrLoginService {
     }
 
     const cookies = new Map(initialCookies);
-    let authorizationUrl = redirectUrl.toString();
+    const checkSigUrl = new URL("https://ssl.ptlogin2.graph.qq.com/check_sig");
+    for (const [key, value] of Object.entries({
+      uin, pttype: "1", service: "ptqrlogin", nodirect: "0", ptsigx: sigx,
+      s_url: "https://graph.qq.com/oauth2.0/login_jump", ptlang: "2052", ptredirect: "100",
+      aid: "716027609", daid: "383", j_later: "0", low_login_hour: "0", regmaster: "0",
+      pt_login_type: "3", pt_aid: "0", pt_aaid: "16", pt_light: "0", pt_3rd_aid: "100497308",
+    })) checkSigUrl.searchParams.set(key, value);
+    let authorizationUrl = checkSigUrl.toString();
     let referer = "https://xui.ptlogin2.qq.com/";
-    let lastHop = "no authorization response";
+    const hops: string[] = [];
     for (let hop = 0; hop < 10; hop++) {
       const response = await this.#fetch(authorizationUrl, {
         headers: { referer, ...(cookies.size ? { cookie: cookieHeader(cookies) } : {}) },
@@ -169,7 +188,7 @@ export class QQQrLoginService {
       }
       mergeCookies(cookies, response.headers);
       const pSkeyState = cookies.get("p_skey") ? "non-empty" : cookies.has("p_skey") ? "empty" : "absent";
-      lastHop = `host=${new URL(authorizationUrl).hostname}, status=${response.status}, redirect=${redirectHost}, set-cookie=${responseCookieNames.join(",") || "none"}, p_skey=${pSkeyState}`;
+      hops.push(`host=${new URL(authorizationUrl).hostname}, status=${response.status}, redirect=${redirectHost}, set-cookie=${responseCookieNames.join(",") || "none"}, p_skey=${pSkeyState}`);
       if (pSkeyState === "non-empty") break;
 
       if (!location || response.status < 300 || response.status >= 400) break;
@@ -181,12 +200,20 @@ export class QQQrLoginService {
       authorizationUrl = nextUrl.toString();
     }
     const pSkey = cookies.get("p_skey");
-    if (!pSkey) throw new Error(`QQ authorization did not provide p_skey (${lastHop})`);
+    if (!pSkey) throw new Error(`QQ authorization did not provide a usable p_skey (hops=${hops.join("; ") || "none"})`);
 
-    const form = new URLSearchParams({ response_type: "code", client_id: "100497308", redirect_uri: "https://y.qq.com/portal/wx_redirect.html?login_type=1&surl=https://y.qq.com/", scope: "get_user_info,get_app_friends", state: "state", switch: "", from_ptlogin: "1", src: "1", update_auth: "1", openapi: "1010_1030", g_tk: String(hash33(pSkey, 5381)), auth_time: String(Date.now()), ui: randomUUID() });
+    const form = new URLSearchParams({ response_type: "code", client_id: "100497308", redirect_uri: "https://y.qq.com/portal/wx_redirect.html?login_type=1&surl=https://y.qq.com/", scope: "get_user_info,get_app_friends", state: "state", switch: "", from_ptlogin: "1", src: "1", update_auth: "1", openapi: "1010_1030", g_tk: String(hash33(pSkey ?? "", 5381)), auth_time: String(Date.now()), ui: randomUUID() });
     const authorized = await this.#fetch("https://graph.qq.com/oauth2.0/authorize", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded", cookie: cookieHeader(cookies) }, body: form, redirect: "manual" });
-    const code = new URL(authorized.headers.get("location") ?? "", "https://y.qq.com/").searchParams.get("code");
-    if (!code) throw new Error("QQ authorization did not return an OAuth code");
+    const authorizationLocation = authorized.headers.get("location");
+    const authorizationRedirect = authorizationLocation ? new URL(authorizationLocation, "https://graph.qq.com/") : null;
+    const code = authorizationRedirect?.searchParams.get("code") ?? null;
+    if (!code) {
+      const queryKeys = authorizationRedirect ? [...authorizationRedirect.searchParams.keys()].join(",") || "none" : "none";
+      const errorCode = authorizationRedirect?.searchParams.get("error") ?? "none";
+      const host = authorizationRedirect?.hostname ?? "none";
+      const path = authorizationRedirect?.pathname ?? "none";
+      throw new Error(`QQ authorization did not return an OAuth code (status=${authorized.status}, redirect=host=${host},path=${path},query-keys=${queryKeys},error-code=${errorCode}, code=missing, hops=${hops.join("; ") || "none"})`);
+    }
 
     const musicResponse = await this.#fetch("https://u.y.qq.com/cgi-bin/musicu.fcg", {
       method: "POST", headers: { "content-type": "application/json", origin: "https://y.qq.com", referer: "https://y.qq.com/" },
@@ -204,7 +231,7 @@ export class QQQrLoginService {
     const lifetime = typeof data.keyExpiresIn === "number" ? data.keyExpiresIn : 90 * 24 * 60 * 60;
     return {
       accountId, accountType: "qq", musicKey, expiresAt: new Date((createdAt + lifetime) * 1000),
-      pSkey,
+      ...(pSkey ? { pSkey } : {}),
       ...(typeof data.refresh_key === "string" && data.refresh_key ? { refreshKey: data.refresh_key } : {}),
       ...(typeof data.refresh_token === "string" && data.refresh_token ? { refreshToken: data.refresh_token } : {}),
       ...(typeof data.access_token === "string" && data.access_token ? { accessToken: data.access_token } : {}),
