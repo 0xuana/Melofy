@@ -134,6 +134,7 @@
 :root[data-theme="blue"] .list-head { background: rgba(247, 251, 254, .94) }
 * { box-sizing: border-box }
 html, body, #app { width: 100%; height: 100%; overflow: hidden }
+.audio-engine { display: none }
 body { margin: 0; min-width: 0; background: var(--background-color) }
 button, input, select { font: inherit }
 button { color: inherit }

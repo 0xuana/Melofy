@@ -588,6 +588,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
+  <audio ref="audio" class="audio-engine" @play="playing = true" @pause="playing = false" @timeupdate="currentTime = $event.currentTarget.currentTime" @durationchange="duration = Number.isFinite($event.currentTarget.duration) ? $event.currentTarget.duration : 0" @ended="ended" />
   <div v-if="routePath === '/login' || !session" class="login-screen">
       <div class="login-card">
         <div class="brand"><span><img src="/melofy-icon-v2.svg" alt="" /></span> Melofy</div>
@@ -657,7 +658,6 @@ onBeforeUnmount(() => {
       </div>
     </main>
     <PlayerBar :track="queue.current" :playing="playing" :current-time="currentTime" :duration="duration" :volume="volume" :mode="queue.mode" :quality="queue.quality" :queue-count="queue.items.length" :queue-open="showQueue" @toggle="toggle" @previous="advance(-1)" @next="advance(1)" @seek="seek" @volume="setVolume" @mute="toggleMute" @mode="cyclePlaybackMode" @quality="setQuality" @queue="showQueue = !showQueue" @lyrics="showLyrics = !showLyrics" />
-    <audio ref="audio" @play="playing = true" @pause="playing = false" @timeupdate="currentTime = $event.currentTarget.currentTime" @durationchange="duration = Number.isFinite($event.currentTarget.duration) ? $event.currentTarget.duration : 0" @ended="ended" />
     <QueuePanel v-if="showQueue" :items="queue.items" :current-id="queue.currentId" :mode="queue.mode" @play="playQueueTrack" @move="queue.move" @remove="removeFromQueue" @clear="clearQueue" @close="showQueue = false" />
     <section v-if="showLyrics" class="lyrics-panel"><IconButton class="lyrics-close" icon="close" label="关闭歌词" @click="showLyrics = false" /><div class="lyrics-artwork-wrap"><img v-if="queue.current?.album?.coverUrl" class="lyrics-artwork" :src="queue.current.album.coverUrl" :alt="`${queue.current.album.name || queue.current.title} 专辑封面`"><div v-else class="lyrics-artwork lyrics-artwork--empty"><AppIcon name="music" /></div><div class="lyrics-artwork-meta"><strong>{{ queue.current?.album?.name || queue.current?.title || '歌词' }}</strong><span>{{ queue.current?.title }}</span><small>{{ queue.current?.artists?.map((artist) => artist.name).join(' / ') }}</small></div></div><div class="lyrics-content"><p class="eyebrow">NOW PLAYING</p><h2>{{ queue.current?.title || '歌词' }}</h2><div ref="lyricsScroll" class="lyrics-scroll" tabindex="0" aria-label="歌词" @wheel.passive="pauseLyricsFollow" @touchstart.passive="pauseLyricsFollow" @pointerdown="pauseLyricsFollow" @keydown="pauseLyricsFollow"><p v-if="!lyricLines.length" class="muted">暂无歌词</p><p v-for="(line, index) in lyricLines" :key="`${line.at}-${index}`" :ref="(element) => setLyricElement(index, element)" :class="{ active: index === activeLyric }">{{ line.text }}<small v-if="line.translation">{{ line.translation }}</small></p></div></div></section>
   </div>
