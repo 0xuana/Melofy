@@ -71,7 +71,7 @@ function numericCursor(cursor: string | null): number {
 }
 
 export class LiveQQMusicProvider implements QQMusicProvider {
-  readonly #credentials: QQMusicCredentials;
+  #credentials: QQMusicCredentials;
   readonly #fetch: typeof globalThis.fetch;
   readonly #tracks = new Map<string, CachedTrack>();
   readonly #membershipCache = new Map<string, { readonly ids: readonly string[]; readonly expiresAt: number }>();
@@ -84,6 +84,17 @@ export class LiveQQMusicProvider implements QQMusicProvider {
   constructor(credentials: QQMusicCredentials, fetchImplementation: typeof globalThis.fetch = globalThis.fetch) {
     this.#credentials = credentials;
     this.#fetch = fetchImplementation;
+  }
+
+  replaceCredentials(credentials: QQMusicCredentials): void {
+    if (credentials.accountId !== this.#credentials.accountId) this.#tracks.clear();
+    this.#credentials = credentials;
+    this.#favoritePlaylistId = null;
+    this.#profile = null;
+    this.#membershipCache.clear();
+    this.#membershipRequests.clear();
+    this.#createdPlaylistsCache = null;
+    this.#createdPlaylistsRequest = null;
   }
 
   async getSession(): Promise<AccountSession | null> {

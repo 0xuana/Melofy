@@ -80,6 +80,37 @@ test("loads the liked collection and resolves an authenticated stream", async ()
   assert.deepEqual(await provider.getLyrics("7"), { trackId: "7", lyric: "[ti:Song]\n[00:01.00]Line", translation: "[ti:Song]\n[00:01.00]翻译" });
 });
 
+test("replacing credentials for the same account preserves loaded track metadata", async () => {
+  const requests: Record<string, unknown>[] = [];
+  const fakeFetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const body = typeof init?.body === "string" ? JSON.parse(init.body) as Record<string, unknown> : {};
+    requests.push(body);
+    if (String(input).includes("fcg_get_profile_homepage")) return Response.json({ code: 0, data: { mymusic: [{ type: 1, id: "42" }] } });
+    if (body.library) return Response.json({ code: 0, library: { code: 0, data: {
+      total_song_num: 1,
+      songlist: [{ id: 7, mid: "preserved-mid", title: "VIP track", action: { play: 1 }, file: { size_320mp3: 1200 } }],
+    } } });
+    return Response.json({ code: 0, stream: { code: 0, data: {
+      sip: ["https://audio.example/"], midurlinfo: [{ purl: "vip.mp3" }],
+    } } });
+  }) as typeof globalThis.fetch;
+  const provider = new LiveQQMusicProvider({ accountId: "123", accountType: "qq", musicKey: "old-key", expiresAt: new Date("2030-01-01") }, fakeFetch);
+
+  await provider.getLikedSongs(null, 100);
+  provider.replaceCredentials({ accountId: "123", accountType: "qq", musicKey: "fresh-key", expiresAt: new Date("2030-02-01") });
+
+  const stream = await provider.resolveStream("7", "high");
+  assert.ok("url" in stream, "the new session should still resolve previously loaded track metadata");
+  assert.equal((requests.at(-1)?.comm as Record<string, unknown>).authst, "fresh-key");
+  const streamRequest = requests.at(-1)?.stream as Record<string, unknown>;
+  assert.deepEqual((streamRequest.param as Record<string, unknown>).songmid, ["preserved-mid"]);
+
+  provider.replaceCredentials({ accountId: "456", accountType: "qq", musicKey: "another-account-key", expiresAt: new Date("2030-03-01") });
+  assert.deepEqual(await provider.resolveStream("7", "high"), {
+    trackId: "7", reason: "unavailable", message: "This legacy QQMusic entry has no playable song MID.",
+  });
+});
+
 test("normalizes created and collected playlists and pages playlist tracks", async () => {
   const fakeFetch = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
