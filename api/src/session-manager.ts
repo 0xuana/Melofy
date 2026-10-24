@@ -27,7 +27,8 @@ export class SessionManager {
     const provider = new LiveQQMusicProvider(credentials);
     await this.#validate(provider);
     this.#store.save(credentials);
-    this.#provider = provider;
+    if (this.#provider instanceof LiveQQMusicProvider) this.#provider.replaceCredentials(credentials);
+    else this.#provider = provider;
   }
 
   clear(): void {
